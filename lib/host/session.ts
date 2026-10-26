@@ -87,6 +87,8 @@ export type HostSnapshot = {
   /** False until the resume record has been checked, so /play doesn't flash "No game". */
   restored: boolean;
   running: boolean;
+  /** The emulator's own error if it crashed mid-game (the picture freezes or goes black). */
+  crashed: string | null;
   /** Recent chat, oldest first. */
   chat: ChatLine[];
   /** Recent joins and leaves, oldest first. */
@@ -106,6 +108,7 @@ class HostSession {
     resuming: false,
     restored: false,
     running: false,
+    crashed: null,
     chat: [],
     presence: [],
   };
@@ -301,7 +304,8 @@ class HostSession {
     audio?.getAudioTracks().forEach((t) => stream.addTrack(t));
     this.stream = stream;
 
-    this.set({ running: true, resuming: false });
+    this.set({ running: true, resuming: false, crashed: null });
+    window.addEventListener("error", this.onCoreError);
     this.broadcast({ t: "game", game: rom.game });
     for (const guest of this.guests.values()) void this.sendMedia(guest);
     this.timers.push(window.setInterval(() => void this.autosave(), AUTOSAVE_MS));
@@ -413,6 +417,7 @@ class HostSession {
     for (const g of this.guests.values()) g.link.close();
     this.guests.clear();
     document.removeEventListener("visibilitychange", this.onHidden);
+    window.removeEventListener("error", this.onCoreError);
     this.emu?.exit({ removeCanvas: false });
     this.tap?.close();
     this.tap?.uninstall();
@@ -426,7 +431,7 @@ class HostSession {
     this.resumeState = null;
     this.timers = [];
     this.peers = [];
-    this.set({ status: "idle", code: null, players: [], spectators: 0, guests: [], rom: null, resuming: false, running: false, chat: [], presence: [] });
+    this.set({ status: "idle", code: null, players: [], spectators: 0, guests: [], rom: null, resuming: false, running: false, crashed: null, chat: [], presence: [] });
   }
 
   // ---------- Player management ----------
@@ -707,7 +712,16 @@ class HostSession {
   }
 
   /** Saves a resume state. Skipped while hidden (the emulator isn't advancing). */
+  /** A trap inside the core's WebAssembly: it won't run another frame. */
+  private onCoreError = (e: ErrorEvent) => {
+    if (!this.emu || !(e.error instanceof WebAssembly.RuntimeError)) return;
+    console.error("[gameroom] the emulator crashed:", e.error);
+    this.set({ crashed: e.error.message });
+  };
+
   private async autosave() {
+    // A crashed core never finishes a save; keep the last good one for resume.
+    if (this.snapshot.crashed) return;
     const emu = this.emu;
     if (!emu || document.hidden) return;
     const t0 = performance.now();

@@ -101,6 +101,7 @@ export function HostPlay() {
           <OverlayLayer frameRef={canvasRef} attach={(o) => hostSession.attachOverlay(o)} sink={hostSession.overlaySink} />
         )}
         {!ready && <ContinueButton title={snap.rom.game.title} onClick={() => setReady(true)} />}
+        {snap.crashed && <CrashNotice message={snap.crashed} />}
         <StatsPill ref={pillRef} />
         {snap.running && <AudioWidget />}
         {!menu.shown && (
@@ -253,6 +254,29 @@ function NoGame({ onHome }: { onHome: () => void }) {
       >
         Back to home
       </button>
+    </div>
+  );
+}
+
+/** The core hit a fatal error; a reload resumes from the last autosave. */
+function CrashNotice({ message }: { message: string }) {
+  return (
+    <div role="alert" className="fade-in absolute inset-0 z-20 flex items-center justify-center bg-game-bg/80 p-6">
+      <div className="flex max-w-[380px] flex-col items-center gap-3 rounded-card bg-surface p-6 text-center shadow-lift">
+        <h2 className="text-lg font-extrabold">The game stopped working</h2>
+        <p className="text-sm font-semibold text-text-muted">
+          The emulator crashed. Reloading picks up from the last autosave, a few seconds back.
+        </p>
+        <p className="text-xs font-semibold break-words text-text-muted select-text">{message}</p>
+        <button
+          type="button"
+          autoFocus
+          onClick={() => window.location.reload()}
+          className="ring-row mt-1 min-h-11 rounded-full bg-primary-text px-6 text-sm font-extrabold text-white"
+        >
+          Reload
+        </button>
+      </div>
     </div>
   );
 }
