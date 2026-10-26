@@ -114,7 +114,18 @@ export function GuestJoin({ code }: { code: string }) {
             {snap.stream ? (
               <StreamVideo stream={snap.stream} muted className="h-full w-full object-contain" />
             ) : (
-              <span className="px-4 text-center">{statusText(snap.status, snap.error)}</span>
+              <div className="flex flex-col items-center gap-3 px-4 text-center">
+                <span>{statusText(snap.status, snap.error)}</span>
+                {snap.status === "error" && (
+                  <button
+                    type="button"
+                    onClick={() => window.location.reload()}
+                    className="ring-row min-h-10 rounded-full bg-white/92 px-5 text-sm font-extrabold text-text"
+                  >
+                    Try again
+                  </button>
+                )}
+              </div>
             )}
             {snap.stream && (
               <span className="absolute top-3.5 left-3.5 inline-flex items-center gap-1.5 rounded-full bg-white/92 px-3 py-[5px] text-xs font-extrabold text-text">
@@ -186,7 +197,7 @@ export function GuestJoin({ code }: { code: string }) {
       <Footer
         status={
           <span className="inline-flex items-center gap-2 font-bold">
-            <Dot className={connected ? "bg-ok" : snap.status === "connecting" || snap.status === "waiting" ? "bg-slot-empty" : "bg-danger"} />
+            <Dot className={connected ? "bg-ok" : snap.status === "connecting" || snap.status === "reaching" || snap.status === "waiting" ? "bg-slot-empty" : "bg-danger"} />
             {connected ? "Connected" : statusText(snap.status, snap.error)}
             <span ref={rttRef} className="text-text" />
             {snap.spectators > 0 && <span>{snap.spectators} watching</span>}
@@ -212,6 +223,7 @@ export function GuestJoin({ code }: { code: string }) {
 
 export function statusText(status: GuestSnapshot["status"], error: string | null) {
   if (status === "connecting") return "Connecting to the room";
+  if (status === "reaching") return "Connecting to the host";
   if (status === "waiting") return "Waiting for the host to come back";
   if (status === "ended") return "The host ended the session.";
   if (status === "kicked") return "The host removed you from the room.";

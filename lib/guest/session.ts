@@ -31,12 +31,17 @@ const HEARTBEAT_MS = 1000 / 60;
 const HOST_GRACE_MS = 30_000;
 const RETRY_MS = 2000;
 const CONNECT_TIMEOUT_MS = 8000;
+const SIGNALING_TIMEOUT_MS = 10_000;
 
 export type InputMode = "gamepad" | "keyboard" | "touch";
 
 export type GuestSnapshot = {
-  /** "waiting": the host dropped and we're retrying for up to 30 s. */
-  status: "connecting" | "connected" | "waiting" | "ended" | "kicked" | "error";
+  /**
+   * "connecting": reaching the signaling server. "reaching": it found the
+   * room, now opening the direct connection to the host.
+   * "waiting": the host dropped and we're retrying for up to 30 s.
+   */
+  status: "connecting" | "reaching" | "connected" | "waiting" | "ended" | "kicked" | "error";
   error: string | null;
   hostName: string;
   game: Game | null;
@@ -126,6 +131,12 @@ export class GuestSession {
     if (!this.droppedAt) this.set({ status: "connecting", error: null });
     const peer = new Peer(guestPeerId(this.code), { config, debug: 0, ...signalingOptions() });
     this.peer = peer;
+    // The signaling socket can hang without an error (a blocked network, say).
+    setTimeout(() => {
+      if (gen !== this.gen || this.peer !== peer || peer.open) return;
+      if (this.droppedAt) this.retry(gen);
+      else this.set({ status: "error", error: "Could not reach the room server. Check your connection and try again." });
+    }, SIGNALING_TIMEOUT_MS);
     peer.on("error", (err) => {
       if (gen !== this.gen || this.peer !== peer) return;
       const type = (err as { type?: string }).type;
@@ -143,6 +154,7 @@ export class GuestSession {
       });
     });
     peer.on("open", () => {
+      if (!this.droppedAt) this.set({ status: "reaching" });
       const conn = peer.connect(peerIdFor(this.code), { reliable: true, serialization: "json" });
       const link = new PeerLink(conn, {
         onControl: (msg) => this.onControl(msg),
@@ -161,13 +173,29 @@ export class GuestSession {
       });
       this.link = link;
       link.pc.addEventListener("track", (e) => this.onTrack(e));
-      // An attempt can hang without ever opening, closing or failing (e.g.
-      // reaching a host that just reloaded). Give it a deadline.
-      setTimeout(() => {
+      // Which kinds of address this device offered, for the console when it fails.
+      const offered = new Set<string>();
+      link.pc.addEventListener("icecandidate", (e) => {
+        if (e.candidate?.type) offered.add(e.candidate.type);
+      });
+      // The room exists but no direct path to the host worked, or the attempt
+      // hung (e.g. reaching a host that just reloaded). Either way, say so.
+      const fail = () => {
         if (gen !== this.gen || this.link !== link || conn.open) return;
-        if (this.droppedAt) this.retry(gen);
-        else this.set({ status: "error", error: "Could not reach the room. Check the code and try again." });
-      }, CONNECT_TIMEOUT_MS);
+        if (this.droppedAt) return this.retry(gen);
+        console.warn("gameroom: no connection to the host", {
+          ice: link.pc.iceConnectionState,
+          offered: [...offered],
+        });
+        this.set({
+          status: "error",
+          error: "Found the room but couldn't connect to the host. Some networks, like mobile data, block this; try Wi-Fi.",
+        });
+      };
+      link.pc.addEventListener("iceconnectionstatechange", () => {
+        if (link.pc.iceConnectionState === "failed") fail();
+      });
+      setTimeout(fail, CONNECT_TIMEOUT_MS);
       conn.on("open", () => {
         if (gen !== this.gen) return;
         const reconnect = !!this.droppedAt;
