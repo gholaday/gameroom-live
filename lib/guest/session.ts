@@ -2,6 +2,7 @@ import type { Peer } from "peerjs";
 import { getName, setName, tabToken } from "@/lib/identity";
 import { keyMask, padMasksFor } from "@/lib/input/controls";
 import { readGamepad } from "@/lib/input/retropad";
+import { iceReport } from "@/lib/net/ice-report";
 import { ICE_CONFIG, PeerLink } from "@/lib/net/link";
 import { guestPeerId, signalingOptions } from "@/lib/net/signaling";
 import {
@@ -43,6 +44,8 @@ export type GuestSnapshot = {
    */
   status: "connecting" | "reaching" | "connected" | "waiting" | "ended" | "kicked" | "error";
   error: string | null;
+  /** Technical detail under the error, such as which addresses were tried. */
+  errorDetail?: string;
   hostName: string;
   game: Game | null;
   players: PlayerInfo[];
@@ -128,7 +131,7 @@ export class GuestSession {
     const { Peer } = await import("peerjs");
     const config = ICE_CONFIG;
     if (gen !== this.gen) return;
-    if (!this.droppedAt) this.set({ status: "connecting", error: null });
+    if (!this.droppedAt) this.set({ status: "connecting", error: null, errorDetail: undefined });
     const peer = new Peer(guestPeerId(this.code), { config, debug: 0, ...signalingOptions() });
     this.peer = peer;
     // The signaling socket can hang without an error (a blocked network, say).
@@ -173,29 +176,27 @@ export class GuestSession {
       });
       this.link = link;
       link.pc.addEventListener("track", (e) => this.onTrack(e));
-      // Which kinds of address this device offered, for the console when it fails.
-      const offered = new Set<string>();
-      link.pc.addEventListener("icecandidate", (e) => {
-        if (e.candidate?.type) offered.add(e.candidate.type);
-      });
       // The room exists but no direct path to the host worked, or the attempt
-      // hung (e.g. reaching a host that just reloaded). Either way, say so.
-      const fail = () => {
-        if (gen !== this.gen || this.link !== link || conn.open) return;
+      // hung (e.g. reaching a host that just reloaded). Either way, say so,
+      // with which addresses were tried, since a phone has no console.
+      let failing = false;
+      const fail = async () => {
+        if (failing || gen !== this.gen || this.link !== link || conn.open) return;
         if (this.droppedAt) return this.retry(gen);
-        console.warn("gameroom: no connection to the host", {
-          ice: link.pc.iceConnectionState,
-          offered: [...offered],
-        });
+        failing = true;
+        const report = iceReport((await link.pc.getStats().catch(() => new Map())).values());
+        if (gen !== this.gen || this.link !== link || conn.open) return;
+        console.warn("gameroom: no connection to the host.", report);
         this.set({
           status: "error",
           error: "Found the room but couldn't connect to the host. Some networks, like mobile data, block this; try Wi-Fi.",
+          errorDetail: `${link.pc.iceConnectionState}. ${report}`,
         });
       };
       link.pc.addEventListener("iceconnectionstatechange", () => {
-        if (link.pc.iceConnectionState === "failed") fail();
+        if (link.pc.iceConnectionState === "failed") void fail();
       });
-      setTimeout(fail, CONNECT_TIMEOUT_MS);
+      setTimeout(() => void fail(), CONNECT_TIMEOUT_MS);
       conn.on("open", () => {
         if (gen !== this.gen) return;
         const reconnect = !!this.droppedAt;

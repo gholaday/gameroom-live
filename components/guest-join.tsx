@@ -116,6 +116,9 @@ export function GuestJoin({ code }: { code: string }) {
             ) : (
               <div className="flex flex-col items-center gap-3 px-4 text-center">
                 <span>{statusText(snap.status, snap.error)}</span>
+                {snap.status === "error" && snap.errorDetail && (
+                  <span className="max-w-[44ch] text-[11px] leading-snug text-white/50 select-text">{snap.errorDetail}</span>
+                )}
                 {snap.status === "error" && (
                   <button
                     type="button"
