@@ -1,9 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { Check } from "lucide-react";
 import { Avatar, latencyClass, type PlayerSlot } from "@/components/ui";
 import type { GuestInfo } from "@/lib/host/session";
 import { MAX_NAME } from "@/lib/identity";
+import { enableLanAccess, watchLanAccess, type LanAccess } from "@/lib/net/lan-access";
 
 /** Host controls: move guests between slots, make them spectate, or remove them. */
 export function PlayersPanel({
@@ -61,7 +63,51 @@ export function SettingsPanel({ name, onName }: { name: string; onName: (name: s
     <section aria-label="Settings" className="flex flex-col gap-3 rounded-card bg-surface p-4 shadow-[0_2px_6px_rgba(0,0,0,0.06)]">
       <h2 className="text-base font-extrabold">Settings</h2>
       <NameField value={value} onChange={setValue} onCommit={() => onName(value)} label="Your name" />
+      <WifiJoin />
     </section>
+  );
+}
+
+/** Lets phones and laptops on the host's own Wi-Fi connect (see lib/net/lan-access.ts). */
+function WifiJoin() {
+  const [access, setAccess] = useState<LanAccess | null>(null);
+  const [asking, setAsking] = useState(false);
+  useEffect(() => watchLanAccess(setAccess), []);
+  if (!access || access === "unsupported") return null;
+
+  return (
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-line-soft pt-3">
+      <div className="flex min-w-[200px] flex-1 flex-col gap-0.5">
+        <span className="text-sm font-extrabold">Players on your Wi-Fi</span>
+        <span className="text-xs leading-snug font-semibold text-text-muted">
+          {access === "on"
+            ? "Devices on this network can join. New connections use this computer's local address."
+            : access === "blocked"
+              ? "The microphone is blocked for this site, so devices on your Wi-Fi may not connect. Allow it in the browser's site settings."
+              : "Your browser hides this computer's local address, so phones on the same Wi-Fi may not connect. Allowing the microphone once lifts that. Nothing is recorded."}
+        </span>
+      </div>
+      {access === "on" ? (
+        <span className="inline-flex items-center gap-1.5 text-sm font-extrabold text-ok">
+          <Check size={16} strokeWidth={3} aria-hidden />
+          On
+        </span>
+      ) : (
+        access === "off" && (
+          <button
+            type="button"
+            disabled={asking}
+            onClick={async () => {
+              setAsking(true);
+              if (!(await enableLanAccess())) setAsking(false);
+            }}
+            className="ring-row min-h-10 rounded-full bg-primary-text px-4 text-sm font-extrabold text-white disabled:opacity-60"
+          >
+            Allow
+          </button>
+        )
+      )}
+    </div>
   );
 }
 

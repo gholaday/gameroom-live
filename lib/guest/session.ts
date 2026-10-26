@@ -193,7 +193,8 @@ export class GuestSession {
         console.warn("gameroom: no connection to the host.", report);
         this.set({
           status: "error",
-          error: "Found the room but couldn't connect to the host. Some networks, like mobile data, block this; try Wi-Fi.",
+          error:
+            "Found the room but couldn't connect to the host. On the host's Wi-Fi? Ask them to turn on Players on your Wi-Fi in Settings. Otherwise your network may be blocking it.",
           errorDetail: `${link.pc.iceConnectionState}. ${report}`,
         });
       };
