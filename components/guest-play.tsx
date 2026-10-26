@@ -121,6 +121,8 @@ export function GuestPlay({
           players={snap.players}
           spectators={snap.spectators}
           onBack={resume}
+          isSelf={(p) => snap.slot > 0 && p.slot === snap.slot}
+          onRename={(n) => session.rename(n)}
         >
           <MenuRow onClick={resume} isDefault>
             Resume

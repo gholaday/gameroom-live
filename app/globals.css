@@ -164,7 +164,7 @@ button {
   background: linear-gradient(#ebebef, #dcdce2);
   box-shadow:
     inset 0 2px 0 rgba(255, 255, 255, 0.8),
-    0 14px 28px rgba(0, 0, 0, 0.16);
+    0 8px 14px -6px rgba(0, 0, 0, 0.22);
 }
 @keyframes cart-insert {
   from {

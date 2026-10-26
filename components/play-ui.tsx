@@ -1,7 +1,9 @@
 "use client";
 
-import { forwardRef, useState, type ReactNode } from "react";
+import { forwardRef, useEffect, useRef, useState, type ReactNode } from "react";
+import { Pencil } from "lucide-react";
 import { Avatar, Dot, Hint, HintBar, latencyClass, type PlayerSlot } from "@/components/ui";
+import { MAX_NAME } from "@/lib/identity";
 import type { PlayerInfo } from "@/lib/net/protocol";
 import { useInitialFocus, useNavAction } from "@/lib/nav/react";
 
@@ -94,8 +96,8 @@ export function setPill(pill: HTMLElement | null, rttMs: number | null, fps: num
 }
 
 /**
- * Menu open state with an exit animation: `open` drives pausing and game
- * mode (so play resumes the moment you close), `shown` keeps the panel
+ * Menu open state with an exit animation: `open` drives game mode (so input
+ * goes back to the game the moment you close), `shown` keeps the panel
  * mounted while it slides out.
  */
 export function useMenu() {
@@ -119,6 +121,8 @@ export function MenuPanel({
   onBack,
   closing = false,
   onClosed,
+  isSelf,
+  onRename,
   children,
 }: {
   system: string;
@@ -129,15 +133,25 @@ export function MenuPanel({
   /** Slide out, then call onClosed. */
   closing?: boolean;
   onClosed?: () => void;
+  /** Which row is you: that one gets a rename button. */
+  isSelf?: (p: PlayerInfo) => boolean;
+  onRename?: (name: string) => void;
   children: ReactNode;
 }) {
   useInitialFocus(!closing);
   useNavAction("back", onBack, !closing);
+  // animationend can go missing (a tab that stops painting mid-slide). Don't
+  // leave the closed menu's backdrop over the game waiting for it.
+  useEffect(() => {
+    if (!closing) return;
+    const id = setTimeout(() => onClosed?.(), 400);
+    return () => clearTimeout(id);
+  }, [closing, onClosed]);
   return (
     <>
       <div
         aria-hidden
-        className={`absolute inset-0 z-20 bg-black/45 ${closing ? "fade-out" : "fade-in"}`}
+        className={`absolute inset-0 z-20 bg-black/45 ${closing ? "fade-out pointer-events-none" : "fade-in"}`}
         onClick={closing ? undefined : onBack}
       />
       <aside
@@ -156,7 +170,11 @@ export function MenuPanel({
           {players.map((p) => (
             <li key={p.slot} className="flex items-center gap-3 p-2">
               <Avatar slot={p.slot as PlayerSlot} name={p.name} size={36} />
-              <span className="flex-1 font-bold">{p.name}</span>
+              {onRename && isSelf?.(p) ? (
+                <EditableName name={p.name} onSave={onRename} />
+              ) : (
+                <span className="min-w-0 flex-1 truncate font-bold">{p.name}</span>
+              )}
               {p.isHost ? (
                 <span className="text-[13px] font-bold text-text-muted">Host</span>
               ) : (
@@ -208,6 +226,62 @@ export function MenuRow({
       {children}
       {icon && <span className="flex-none text-text-muted">{icon}</span>}
     </button>
+  );
+}
+
+/** Your name in the menu's player list, with a small button that edits it in place. Enter saves, Esc cancels. */
+function EditableName({ name, onSave }: { name: string; onSave: (name: string) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(name);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const was = useRef(false);
+  useNavAction("back", () => setEditing(false), editing);
+  // Put focus back on the button once the field closes.
+  useEffect(() => {
+    if (was.current && !editing) buttonRef.current?.focus();
+    was.current = editing;
+  }, [editing]);
+
+  if (editing)
+    return (
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (value.trim()) onSave(value);
+          setEditing(false);
+        }}
+        className="flex min-w-0 flex-1"
+      >
+        <input
+          autoFocus
+          aria-label="Your name"
+          value={value}
+          maxLength={MAX_NAME}
+          onChange={(e) => setValue(e.target.value)}
+          onFocus={(e) => e.currentTarget.select()}
+          onBlur={() => setEditing(false)}
+          // The emulator's key handler on document cancels every key; keep typing from reaching it.
+          onKeyDown={(e) => e.stopPropagation()}
+          className="ring-row min-h-9 min-w-0 flex-1 rounded-full border-none bg-surface px-3 text-base font-bold text-text"
+        />
+      </form>
+    );
+  return (
+    <span className="flex min-w-0 flex-1 items-center gap-1">
+      <span className="truncate font-bold">{name}</span>
+      <button
+        ref={buttonRef}
+        type="button"
+        aria-label="Change your name"
+        onClick={() => {
+          setValue(name);
+          setEditing(true);
+        }}
+        className="ring-row flex h-8 w-8 flex-none items-center justify-center rounded-full text-text-muted hover:bg-surface hover:text-text focus:bg-surface"
+      >
+        <Pencil size={15} aria-hidden />
+      </button>
+    </span>
   );
 }
 

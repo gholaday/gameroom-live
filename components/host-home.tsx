@@ -423,7 +423,7 @@ function ConsoleDeck({
 }) {
   const size = game ? cartSize(game.systemId) : null;
   return (
-    <section aria-label="Console" className="flex flex-col pt-1">
+    <section aria-label="Console" className="mb-2 flex flex-col pt-1">
       {/* The cart's lower part sits behind the console body, as if pushed into the slot. */}
       <div className="relative h-[120px]">
         {game && size && (

@@ -56,12 +56,10 @@ export function HostPlay() {
     hostSession.boot().catch((err) => setError(err instanceof Error ? err.message : String(err)));
   }, [snap.rom, ready]);
 
-  // The menu pauses the game for everyone; so does leaving this screen.
+  // Leaving this screen pauses the game; being on it runs it. The menu doesn't pause.
   useEffect(() => {
-    if (!snap.running) return;
-    if (menuOpen) hostSession.pause();
-    else hostSession.resume();
-  }, [menuOpen, snap.running]);
+    if (snap.running) hostSession.resume();
+  }, [snap.running]);
   useEffect(() => () => hostSession.pause(), []);
 
   // Pill: worst guest RTT and outbound fps, once a second, straight to the DOM.
@@ -117,6 +115,7 @@ export function HostPlay() {
 }
 
 const listSlots = () => hostSession.listSlots();
+const isHostRow = (p: { isHost?: boolean }) => !!p.isHost;
 
 function HostMenu({
   system,
@@ -165,6 +164,8 @@ function HostMenu({
       onBack={resume}
       closing={closing}
       onClosed={onClosed}
+      isSelf={isHostRow}
+      onRename={(n) => hostSession.setHostName(n)}
     >
       {slots ? (
         <SaveSlots
