@@ -127,12 +127,13 @@ export function HostHome() {
     if (!err) void library.importFiles([file]);
   };
 
-  const playEntry = async (entry: LibraryEntry, name: string) => {
+  // Picking a tile selects the game, so its saves can be looked at first.
+  // Picking the selected one again starts it.
+  const selectEntry = async (entry: LibraryEntry, name: string) => {
     if (snap.rom?.file.name === name) return start();
+    if (snap.running) return setNote("A game is running. End the session to pick another.");
     try {
-      const err = hostSession.setRom(await library.file(entry));
-      if (err) setNote(err);
-      else router.push("/play");
+      setNote(hostSession.setRom(await library.file(entry)));
     } catch (e) {
       setNote(e instanceof Error ? e.message : String(e));
     }
@@ -232,7 +233,7 @@ export function HostHome() {
                         game={g}
                         current={snap.rom?.file.name === name}
                         isDefault={!game && i === 0}
-                        onClick={() => void playEntry(entry, name)}
+                        onClick={() => void selectEntry(entry, name)}
                       />
                     </li>
                   ))}
@@ -434,15 +435,19 @@ function GameTile({
     <button
       type="button"
       onClick={onClick}
-      aria-label={`${game.title}, ${game.system}${current ? ", loaded" : ""}`}
+      aria-label={`${game.title}, ${game.system}${current ? ", selected" : ""}`}
       data-nav-default={isDefault ? "" : undefined}
       className="ring-tile group flex w-full flex-col gap-2 rounded-tile bg-transparent p-0 text-left"
     >
-      <span className="relative flex aspect-square w-full overflow-hidden rounded-tile shadow-soft transition-[box-shadow,translate] duration-200 ease-out group-hover:-translate-y-0.5 group-hover:shadow-lift group-focus:shadow-lift">
+      <span
+        className={`relative flex aspect-square w-full overflow-hidden rounded-tile shadow-soft transition-[box-shadow,translate] duration-200 ease-out group-hover:-translate-y-0.5 group-hover:shadow-lift group-focus:shadow-lift ${
+          current ? "outline-[3px] outline-offset-[3px] outline-primary-text outline-solid" : ""
+        }`}
+      >
         <BoxArt game={game} />
         {current && (
           <span className="absolute top-2 left-2 rounded-full bg-primary-text px-2.5 py-1 text-[11px] font-extrabold text-white">
-            Loaded
+            Selected
           </span>
         )}
       </span>
