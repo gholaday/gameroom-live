@@ -82,11 +82,11 @@ export function SaveSlots({
   );
 }
 
-function Thumb({ save }: { save: SaveSlot | null }) {
+export function Thumb({ save, className = "h-[48px] w-[64px] rounded-md" }: { save: SaveSlot | null; className?: string }) {
   const url = useMemo(() => (save?.thumbnail ? URL.createObjectURL(save.thumbnail) : null), [save]);
   useEffect(() => () => void (url && URL.revokeObjectURL(url)), [url]);
   return (
-    <span className="h-[48px] w-[64px] flex-none overflow-hidden rounded-md bg-game-bg">
+    <span className={`flex-none overflow-hidden bg-game-bg ${className}`}>
       {url && (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={url} alt="" className="h-full w-full object-cover [image-rendering:pixelated]" />
@@ -95,7 +95,7 @@ function Thumb({ save }: { save: SaveSlot | null }) {
   );
 }
 
-function ago(t: number) {
+export function ago(t: number) {
   const s = Math.round((Date.now() - t) / 1000);
   if (s < 60) return "Just now";
   const m = Math.round(s / 60);

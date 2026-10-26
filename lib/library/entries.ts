@@ -14,12 +14,17 @@ export function gameTitle(fileName: string) {
   return bare.replace(/^([^,]+), (The|A|An)\b/, "$2 $1");
 }
 
-/** Keeps ROMs only, later entries win on the same path, sorted by title. */
+const fileName = (path: string) => path.split("/").pop()!;
+
+/**
+ * Keeps ROMs only, one per file name (the same ROM opened by hand and found in
+ * a folder, or a folder added twice), later entries winning. Sorted by title.
+ */
 export function mergeEntries(existing: LibraryEntry[], added: { path: string; kind: LibraryEntry["kind"] }[]) {
-  const byPath = new Map(existing.map((e) => [e.path, e]));
+  const byName = new Map(existing.map((e) => [fileName(e.path), e]));
   for (const { path, kind } of added) {
-    const name = path.split("/").pop()!;
-    if (systemForFile(name)) byPath.set(path, { path, kind, title: gameTitle(name) });
+    const name = fileName(path);
+    if (systemForFile(name)) byName.set(name, { path, kind, title: gameTitle(name) });
   }
-  return [...byPath.values()].sort((a, b) => a.title.localeCompare(b.title));
+  return [...byName.values()].sort((a, b) => a.title.localeCompare(b.title));
 }

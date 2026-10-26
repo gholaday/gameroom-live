@@ -35,15 +35,17 @@ export function HostPlay() {
   useNavAction("start", menu.toggle, snap.running);
 
   // Attach the session's canvas before children's effects (the overlay) measure it.
-  const hasRom = !!snap.rom;
+  // Next keeps this screen mounted (hidden) across routes, and ending a session
+  // makes a new canvas, so take the session's current one each time the game changes.
+  const rom = snap.rom;
   useLayoutEffect(() => {
     const box = frameBoxRef.current;
-    const canvas = canvasRef.current;
-    if (!box || !canvas) return;
+    const canvas = (canvasRef.current = hostSession.getCanvas());
+    if (!box || !canvas || !rom) return;
     canvas.className = "h-full w-full object-contain [image-rendering:pixelated] transition-opacity";
     box.prepend(canvas);
     return () => canvas.remove();
-  }, [canvasRef, hasRom]);
+  }, [canvasRef, rom]);
   useEffect(() => {
     canvasRef.current?.classList.toggle("opacity-55", menuOpen);
   }, [canvasRef, menuOpen]);

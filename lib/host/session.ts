@@ -109,6 +109,10 @@ class HostSession {
   private peers: OverlayPeer[] = [];
   private resumeState: Blob | null = null;
   private restored = false;
+  /** The boot in flight, so a second call (React runs effects twice in dev) waits on it. */
+  private booting: Promise<void> | null = null;
+  /** Bumped by end(), so a boot that finishes after it shuts its emulator down. */
+  private generation = 0;
   /**
    * The emulator's canvas lives as long as the session, not the play screen:
    * leaving /play detaches it and coming back re-attaches the same, still
@@ -188,7 +192,7 @@ class HostSession {
   }
 
   setRom(file: File, { persist = true } = {}): string | null {
-    if (this.emu) return "End the current game first.";
+    if (this.emu || this.booting) return "End the current game first.";
     const found = gameForFile(file.name);
     if (!found) return `That file type isn't supported. Supported: ${ROM_ACCEPT.replaceAll(",", ", ")}.`;
     const { game, system } = found;
@@ -215,18 +219,24 @@ class HostSession {
   }
 
   /** Boots the ROM into the session canvas and starts streaming. No-op if already running. */
-  async boot() {
+  boot(): Promise<void> {
+    this.booting ??= this.launch().finally(() => (this.booting = null));
+    return this.booting;
+  }
+
+  private async launch() {
     const rom = this.snapshot.rom;
     const canvas = this.getCanvas();
     if (!rom || !canvas || this.emu) return;
+    const gen = this.generation;
     const { core, size, config } = rom.system;
     canvas.width = size.width;
     canvas.height = size.height;
     pinCanvasSize(canvas, size.width, size.height);
-    this.tap = installAudioTap();
+    const tap = (this.tap = installAudioTap());
 
     const { Nostalgist } = await import("nostalgist");
-    this.emu = await Nostalgist.launch({
+    const emu = await Nostalgist.launch({
       core,
       rom: rom.file,
       element: canvas,
@@ -250,13 +260,21 @@ class HostSession {
         ...config,
       },
     });
-    this.injector = new InputInjector(this.emu);
+    if (gen !== this.generation) {
+      // The session ended while the core loaded.
+      emu.exit({ removeCanvas: false });
+      tap.close();
+      tap.uninstall();
+      return;
+    }
+    this.emu = emu;
+    this.injector = new InputInjector(emu);
 
     const stream = canvas.captureStream(60);
     stream.getVideoTracks()[0].contentHint = "motion";
     // The tap resolves when the core creates its AudioContext, during launch.
     const audio = await Promise.race([
-      this.tap.stream,
+      tap.stream,
       new Promise<null>((r) => setTimeout(() => r(null), 1000)),
     ]);
     audio?.getAudioTracks().forEach((t) => stream.addTrack(t));
@@ -310,6 +328,17 @@ class HostSession {
     await this.inTurn(() => emu.loadState(save.state));
   }
 
+  /** Plays from a slot: loads it into the running game, or boots the next start from it. */
+  async playSlot(slot: number) {
+    const rom = this.snapshot.rom;
+    if (!rom) return;
+    if (this.emu) return this.loadSlot(slot);
+    const save = (await listSaves(rom.file.name))[slot - 1];
+    if (!save) return;
+    this.resumeState = save.state;
+    this.set({ resuming: false });
+  }
+
   /** Runs a state operation after the ones already queued. */
   private inTurn<T>(op: () => Promise<T>): Promise<T> {
     const run = this.stateQueue.then(op, op);
@@ -352,11 +381,13 @@ class HostSession {
 
   /** Ends the session for everyone, on purpose: no grace period, no resume. */
   end() {
+    this.generation++;
     this.broadcast({ t: "end" });
     for (const g of this.guests.values()) g.link.close();
     this.guests.clear();
     document.removeEventListener("visibilitychange", this.onHidden);
     this.emu?.exit({ removeCanvas: false });
+    this.tap?.close();
     this.tap?.uninstall();
     this.stream?.getTracks().forEach((t) => t.stop());
     this.timers.forEach(clearInterval);

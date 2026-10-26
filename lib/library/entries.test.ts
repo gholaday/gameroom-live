@@ -9,18 +9,18 @@ describe("gameTitle", () => {
 });
 
 describe("mergeEntries", () => {
-  it("keeps only ROMs, replaces same path, and sorts by title", () => {
+  it("keeps only ROMs, one per file name, and sorts by title", () => {
     const first = mergeEntries([], [
-      { path: "snes/Zelda.sfc", kind: "dir" },
+      { path: "Zelda.sfc", kind: "copy" },
       { path: "snes/readme.txt", kind: "dir" },
     ]);
     const merged = mergeEntries(first, [
-      { path: "snes/Zelda.sfc", kind: "copy" },
+      { path: "snes/Zelda.sfc", kind: "dir" },
       { path: "F-Zero.smc", kind: "copy" },
     ]);
     expect(merged.map((e) => [e.path, e.kind])).toEqual([
       ["F-Zero.smc", "copy"],
-      ["snes/Zelda.sfc", "copy"],
+      ["snes/Zelda.sfc", "dir"],
     ]);
   });
 });

@@ -141,3 +141,12 @@ button {
     animation-duration: 1ms;
   }
 }
+
+/* Slim scrollbar for the home screen's columns. */
+.scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--text) 22%, transparent) transparent;
+}
+.scrollbar:hover {
+  scrollbar-color: color-mix(in srgb, var(--text) 38%, transparent) transparent;
+}

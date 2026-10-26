@@ -18,10 +18,12 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { ControlsPanel } from "@/components/controls-panel";
+import { ago, Thumb } from "@/components/save-slots";
 import { PlayersPanel, SettingsPanel } from "@/components/players-panel";
 import { Avatar, Dot, EmptySlot, Footer, Hint, Pill, type PlayerSlot } from "@/components/ui";
 import { HOST_RESERVED } from "@/lib/emulator/host-input";
 import { ROM_ACCEPT, type SystemId } from "@/lib/emulator/systems";
+import type { SaveSlot } from "@/lib/host/saves-store";
 import { hostSession } from "@/lib/host/session";
 import { gameForFile } from "@/lib/library/games";
 import type { LibraryEntry } from "@/lib/library/entries";
@@ -32,7 +34,7 @@ import { useHost, useOrigin } from "@/lib/use-origin";
 
 const SLOTS: PlayerSlot[] = [1, 2, 3, 4];
 
-type View = "library" | "players" | "settings";
+type View = "library" | "players" | "saves" | "settings";
 
 export function HostHome() {
   const router = useRouter();
@@ -177,7 +179,7 @@ export function HostHome() {
 
       <main className="mx-auto grid w-full max-w-[1480px] flex-1 gap-x-8 gap-y-6 px-10 max-sm:px-4 lg:min-h-0 lg:grid-cols-[minmax(0,1fr)_360px]">
         {/* Left: the library, or the view an option opened. Scrolls on its own on wide screens. */}
-        <div className="flex min-w-0 flex-col lg:min-h-0 lg:overflow-y-auto lg:pr-2 [scrollbar-gutter:stable]">
+        <div className="flex min-w-0 flex-col lg:min-h-0 scrollbar lg:overflow-y-auto lg:pr-2 [scrollbar-gutter:stable]">
           {view === "library" ? (
             <section aria-labelledby="library-title" className="flex flex-col gap-4 pb-8">
               <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 pt-1">
@@ -255,7 +257,7 @@ export function HostHome() {
                   <ArrowLeft size={20} aria-hidden />
                 </button>
                 <h1 id="view-title" className="text-[26px] font-extrabold">
-                  {view === "players" ? "Players" : "Settings"}
+                  {view === "players" ? "Players" : view === "saves" ? "Saves" : "Settings"}
                 </h1>
               </div>
               {view === "players" ? (
@@ -266,6 +268,8 @@ export function HostHome() {
                   onSlot={(id, slot) => hostSession.setSlot(id, slot)}
                   onKick={(id) => hostSession.kick(id)}
                 />
+              ) : view === "saves" ? (
+                <SavesView game={game} romName={snap.rom?.file.name ?? null} onPlay={start} />
               ) : (
                 <>
                   <SettingsPanel name={snap.hostName} onName={(n) => hostSession.setHostName(n)} />
@@ -277,7 +281,7 @@ export function HostHome() {
         </div>
 
         {/* Right: what's loaded, the invite, and options. */}
-        <aside className="flex flex-col gap-4 pb-8 lg:min-h-0 lg:overflow-y-auto [scrollbar-width:none]">
+        <aside className="flex flex-col gap-4 pb-8 scrollbar lg:min-h-0 lg:overflow-y-auto">
           <NowPlaying
             game={game}
             label={snap.running ? "Playing now" : snap.resuming ? "Continues where you left off" : "Ready to start"}
@@ -321,7 +325,6 @@ export function HostHome() {
               icon={Gamepad2}
               color="text-p2"
               selected={view === "players"}
-              detail={guests ? `${guests} joined` : "Seats and kicks"}
               onClick={() => toggleView("players")}
             >
               Players
@@ -329,8 +332,8 @@ export function HostHome() {
             <OptionRow
               icon={Save}
               color="text-p3"
-              detail="From the in-game menu"
-              onClick={() => setNote("Save and load states from the in-game menu: Esc, Home, or Select+Start.")}
+              selected={view === "saves"}
+              onClick={() => toggleView("saves")}
             >
               Saves
             </OptionRow>
@@ -338,7 +341,6 @@ export function HostHome() {
               icon={Settings}
               color="text-text-muted"
               selected={view === "settings"}
-              detail="Name and controls"
               onClick={() => toggleView("settings")}
             >
               Settings
@@ -557,14 +559,12 @@ function OptionRow({
   icon: Icon,
   color,
   children,
-  detail,
   selected,
   onClick,
 }: {
   icon: LucideIcon;
   color: string;
   children: React.ReactNode;
-  detail: string;
   selected?: boolean;
   onClick: () => void;
 }) {
@@ -573,16 +573,77 @@ function OptionRow({
       type="button"
       onClick={onClick}
       aria-current={selected ? "page" : undefined}
-      className={`ring-row flex min-h-14 items-center gap-3 rounded-xl px-3 text-left ${selected ? "bg-bg" : "bg-transparent"}`}
+      className={`ring-row flex min-h-12 items-center gap-3 rounded-xl px-3 text-left ${selected ? "bg-bg" : "bg-transparent"}`}
     >
       <span className={`flex h-9 w-9 flex-none items-center justify-center rounded-full bg-bg ${color}`}>
         <Icon size={19} aria-hidden />
       </span>
-      <span className="flex min-w-0 flex-1 flex-col">
-        <span className="text-[15px] font-extrabold">{children}</span>
-        <span className="truncate text-xs font-bold text-text-muted">{detail}</span>
-      </span>
+      <span className="min-w-0 flex-1 text-[15px] font-extrabold">{children}</span>
       <ChevronRight size={18} className="flex-none text-slot-empty" aria-hidden />
     </button>
+  );
+}
+
+/** The loaded game's save slots. Picking one starts the game from it. */
+function SavesView({ game, romName, onPlay }: { game: Game | null; romName: string | null; onPlay: () => void }) {
+  const [slots, setSlots] = useState<{ rom: string; list: (SaveSlot | null)[] } | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!romName) return;
+    let live = true;
+    void hostSession.listSlots().then((list) => live && setSlots({ rom: romName, list }));
+    return () => {
+      live = false;
+    };
+  }, [romName]);
+
+  if (!game) return <p className="text-sm font-semibold text-text-muted">Pick a game from your library to see its saves.</p>;
+  const list = slots?.rom === romName ? slots.list : null;
+
+  const play = async (slot: number) => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await hostSession.playSlot(slot);
+      onPlay();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-4">
+      <p className="text-sm font-semibold text-text-muted">
+        Saves for {game.title}. Save during play from the menu (Esc, Home, or Select+Start), then pick a slot here to play
+        from it.
+      </p>
+      <ul className="-mx-2 grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-5 p-2">
+        {(list ?? [null, null, null, null]).map((save, i) => (
+          <li key={i}>
+            <button
+              type="button"
+              disabled={!save || busy}
+              onClick={() => void play(i + 1)}
+              aria-label={`Slot ${i + 1}, ${save ? ago(save.savedAt) : "empty"}`}
+              className="ring-tile flex w-full flex-col gap-2 rounded-tile bg-transparent p-0 text-left disabled:cursor-default"
+            >
+              <span className="relative flex aspect-[4/3] w-full">
+                <Thumb save={save} className="h-full w-full rounded-tile shadow-soft" />
+                {!save && (
+                  <span className="absolute inset-0 flex items-center justify-center text-sm font-extrabold text-white/50">
+                    Empty
+                  </span>
+                )}
+              </span>
+              <span className="flex flex-col px-0.5">
+                <span className="text-sm font-extrabold">Slot {i + 1}</span>
+                <span className="text-xs font-bold text-text-muted">{save ? ago(save.savedAt) : "Nothing saved yet"}</span>
+              </span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }

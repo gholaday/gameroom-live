@@ -55,7 +55,8 @@ class Library {
       ]);
       this.dir = dir ?? null;
       const granted = dir ? (await dir.queryPermission({ mode: "read" })) === "granted" : false;
-      this.set({ loaded: true, entries: entries ?? [], folderName: dir?.name ?? null, needsPermission: !!dir && !granted });
+      // Merging again drops duplicates saved before entries were keyed by file name.
+      this.set({ loaded: true, entries: mergeEntries([], entries ?? []), folderName: dir?.name ?? null, needsPermission: !!dir && !granted });
       if (granted) await this.rescan();
     })().catch(() => this.set({ loaded: true }));
     return this.loading;

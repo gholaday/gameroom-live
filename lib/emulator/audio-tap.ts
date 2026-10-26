@@ -20,6 +20,8 @@ export type AudioTap = {
   NativeAudioContext: typeof AudioContext;
   /** Restores the original AudioContext and connect(). */
   uninstall: () => void;
+  /** Closes the core's AudioContexts. Exiting the core leaves them playing. */
+  close: () => void;
 };
 
 type Bus = { bus: GainNode; local: GainNode; out: MediaStreamAudioDestinationNode };
@@ -31,6 +33,7 @@ export function installAudioTap(): AudioTap {
   const buses = new WeakMap<BaseAudioContext, Bus>();
   let localVolume = 1;
   let current: Bus | null = null;
+  const contexts: AudioContext[] = [];
   let resolveStream!: (s: MediaStream) => void;
   const stream = new Promise<MediaStream>((r) => (resolveStream = r));
 
@@ -45,6 +48,7 @@ export function installAudioTap(): AudioTap {
       connectNode.call(bus, local);
       connectNode.call(local, this.destination);
       connectNode.call(bus, out);
+      contexts.push(this);
       current = { bus, local, out };
       buses.set(this, current);
       resolveStream(out.stream);
@@ -76,6 +80,9 @@ export function installAudioTap(): AudioTap {
     uninstall() {
       window.AudioContext = OrigContext;
       AudioNode.prototype.connect = origConnect;
+    },
+    close() {
+      for (const ctx of contexts.splice(0)) void ctx.close().catch(() => {});
     },
   };
 }
