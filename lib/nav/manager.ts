@@ -167,11 +167,18 @@ const KEY_DIRS: Record<string, Direction> = {
   ArrowRight: "right",
 };
 
+/**
+ * Capture phase on window, so it runs before the emulator's own key handler on
+ * document, which marks every key as handled (defaultPrevented).
+ */
 function onKeyDown(e: KeyboardEvent) {
-  if (e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey) return;
+  if (e.altKey || e.ctrlKey || e.metaKey) return;
 
   if (inGameMode()) {
-    if (e.key === "Escape" && fire("start")) e.preventDefault();
+    if (e.key === "Escape" && !e.repeat && fire("start")) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
     return;
   }
 
@@ -182,15 +189,23 @@ function onKeyDown(e: KeyboardEvent) {
       t instanceof HTMLInputElement && !t.readOnly && (dir === "left" || dir === "right");
     if (editing) return;
     e.preventDefault();
+    e.stopPropagation();
     setInputMode("nav");
     move(dir);
     return;
   }
   if (e.key === "Escape") {
-    if (fire("back")) e.preventDefault();
+    if (fire("back")) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
     return;
   }
-  if (e.key === "Enter" || e.key === " " || e.key === "Tab") setInputMode("nav");
+  if (e.key === "Enter" || e.key === " " || e.key === "Tab") {
+    setInputMode("nav");
+    // Keep the emulator from cancelling the native click on a focused button.
+    if (e.target instanceof HTMLButtonElement || e.target instanceof HTMLAnchorElement) e.stopPropagation();
+  }
 }
 
 // ---------- Gamepad ----------
@@ -268,7 +283,7 @@ function onPadDisconnected(e: GamepadEvent) {
 export function startNav() {
   if (started || typeof window === "undefined") return;
   started = true;
-  window.addEventListener("keydown", onKeyDown);
+  window.addEventListener("keydown", onKeyDown, { capture: true });
   window.addEventListener("pointerdown", () => setInputMode("pointer"), { capture: true });
   window.addEventListener("gamepadconnected", onPadConnected);
   window.addEventListener("gamepaddisconnected", onPadDisconnected);

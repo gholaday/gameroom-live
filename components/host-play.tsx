@@ -1,17 +1,19 @@
 "use client";
 
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { OverlayLayer } from "@/components/overlay-layer";
 import { MenuHint, MenuNote, MenuPanel, MenuRow, setPill, StatsPill } from "@/components/play-ui";
-import { hostSession, STREAM_SIZE } from "@/lib/host/session";
+import { hostSession } from "@/lib/host/session";
 import { useGameMode, useInitialFocus, useNavAction } from "@/lib/nav/react";
 import { useHost } from "@/lib/use-origin";
 
 export function HostPlay() {
   const router = useRouter();
   const snap = useSyncExternalStore(hostSession.subscribe, hostSession.getSnapshot, hostSession.getSnapshot);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  // The canvas belongs to the session (see getCanvas); this screen only shows it.
+  const [canvasRef] = useState(() => ({ current: hostSession.getCanvas() }));
+  const frameBoxRef = useRef<HTMLDivElement>(null);
   const pillRef = useRef<HTMLSpanElement>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -29,19 +31,33 @@ export function HostPlay() {
   useGameMode(!menuOpen && snap.running);
   useNavAction("start", () => setMenuOpen((open) => !open), snap.running);
 
-  // Boot once. Re-mounts (e.g. coming back from the home screen) find it running.
-  useEffect(() => {
+  // Attach the session's canvas before children's effects (the overlay) measure it.
+  const hasRom = !!snap.rom;
+  useLayoutEffect(() => {
+    const box = frameBoxRef.current;
     const canvas = canvasRef.current;
-    if (!canvas || !snap.rom || !ready) return;
-    hostSession.boot(canvas).catch((err) => setError(err instanceof Error ? err.message : String(err)));
+    if (!box || !canvas) return;
+    canvas.className = "h-full w-full object-contain [image-rendering:pixelated] transition-opacity";
+    box.prepend(canvas);
+    return () => canvas.remove();
+  }, [canvasRef, hasRom]);
+  useEffect(() => {
+    canvasRef.current?.classList.toggle("opacity-55", menuOpen);
+  }, [canvasRef, menuOpen]);
+
+  // Boot once. Coming back from the home screen finds it running.
+  useEffect(() => {
+    if (!snap.rom || !ready) return;
+    hostSession.boot().catch((err) => setError(err instanceof Error ? err.message : String(err)));
   }, [snap.rom, ready]);
 
-  // The menu pauses the game for everyone.
+  // The menu pauses the game for everyone; so does leaving this screen.
   useEffect(() => {
     if (!snap.running) return;
     if (menuOpen) hostSession.pause();
     else hostSession.resume();
   }, [menuOpen, snap.running]);
+  useEffect(() => () => hostSession.pause(), []);
 
   // Pill: worst guest RTT and outbound fps, once a second, straight to the DOM.
   useEffect(() => {
@@ -63,14 +79,8 @@ export function HostPlay() {
 
   return (
     <div className="fixed inset-0 overflow-hidden bg-game-bg">
-      <div inert={menuOpen} className="absolute inset-0 flex items-center justify-center p-6">
-        {/* Framebuffer stays 512x448 (pinned); CSS scales it to fit. */}
-        <canvas
-          ref={canvasRef}
-          width={STREAM_SIZE.width}
-          height={STREAM_SIZE.height}
-          className={`h-full w-full object-contain [image-rendering:pixelated] ${menuOpen ? "opacity-55" : ""}`}
-        />
+      {/* Framebuffer size is pinned; CSS scales it to fit. The canvas is prepended here. */}
+      <div ref={frameBoxRef} inert={menuOpen} className="absolute inset-0 flex items-center justify-center p-6">
         {snap.running && (
           <OverlayLayer frameRef={canvasRef} attach={(o) => hostSession.attachOverlay(o)} sink={hostSession.overlaySink} />
         )}

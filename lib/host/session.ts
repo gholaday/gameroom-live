@@ -107,6 +107,12 @@ class HostSession {
   private peers: OverlayPeer[] = [];
   private resumeState: Blob | null = null;
   private restored = false;
+  /**
+   * The emulator's canvas lives as long as the session, not the play screen:
+   * leaving /play detaches it and coming back re-attaches the same, still
+   * running framebuffer.
+   */
+  private canvas: HTMLCanvasElement | null = null;
 
   subscribe = (fn: () => void) => {
     this.listeners.add(fn);
@@ -192,10 +198,21 @@ class HostSession {
     this.publishPlayers(true);
   }
 
-  /** Boots the ROM into `canvas` and starts streaming. No-op if already running. */
-  async boot(canvas: HTMLCanvasElement) {
+  /** The session's canvas, created on first use. Null during server render. */
+  getCanvas() {
+    if (!this.canvas && typeof document !== "undefined") {
+      this.canvas = document.createElement("canvas");
+      this.canvas.width = STREAM_SIZE.width;
+      this.canvas.height = STREAM_SIZE.height;
+    }
+    return this.canvas;
+  }
+
+  /** Boots the ROM into the session canvas and starts streaming. No-op if already running. */
+  async boot() {
     const rom = this.snapshot.rom;
-    if (!rom || this.emu) return;
+    const canvas = this.getCanvas();
+    if (!rom || !canvas || this.emu) return;
     const core = coreForFile(rom.file.name)!;
     pinCanvasSize(canvas, STREAM_SIZE.width, STREAM_SIZE.height);
     this.tap = installAudioTap();
@@ -215,6 +232,9 @@ class HostSession {
         aspect_ratio_index: 21,
         // No thumbnail work on each save; we only need the state.
         savestate_thumbnail_enable: false,
+        // RetroArch's own wake lock request throws when the browser refuses it.
+        // We hold one ourselves (keepAwake) and handle refusal.
+        suspend_screensaver_enable: false,
         ...remoteBindingsConfig(),
       },
     });
@@ -236,11 +256,19 @@ class HostSession {
     this.timers.push(window.setInterval(() => void this.autosave(), AUTOSAVE_MS));
     // One last save as the tab goes to the background (or is about to close).
     document.addEventListener("visibilitychange", this.onHidden);
+    this.keepAwake();
   }
 
   private onHidden = () => {
     if (document.hidden) void this.autosave(true);
+    // The browser drops wake locks when the tab is hidden; take it again on return.
+    else this.keepAwake();
   };
+
+  /** Keeps the host's screen on while a game runs. Best effort. */
+  private keepAwake() {
+    if (this.emu) navigator.wakeLock?.request("screen").catch(() => {});
+  }
 
   pause() {
     this.emu?.pause();
@@ -263,6 +291,7 @@ class HostSession {
     clearRoom();
     void clearResume();
     this.emu = this.tap = this.injector = this.stream = this.peer = null;
+    this.canvas = null;
     this.resumeState = null;
     this.timers = [];
     this.peers = [];
