@@ -3,9 +3,11 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Gamepad2 } from "lucide-react";
 import { GuestPlay } from "@/components/guest-play";
+import { NameField } from "@/components/players-panel";
 import { StreamVideo } from "@/components/stream-video";
 import { Avatar, Dot, EmptySlot, Footer, Hint, type PlayerSlot } from "@/components/ui";
-import { GuestSession, type InputMode } from "@/lib/guest/session";
+import { GuestSession, type GuestSnapshot, type InputMode } from "@/lib/guest/session";
+import { getName } from "@/lib/identity";
 import { useAnyGamepadButton, useInitialFocus, useNavAction } from "@/lib/nav/react";
 
 const SLOTS: PlayerSlot[] = [1, 2, 3, 4];
@@ -14,7 +16,7 @@ export function GuestJoin({ code }: { code: string }) {
   const [session] = useState(() => new GuestSession(code));
   const snap = useSyncExternalStore(session.subscribe, session.getSnapshot, session.getSnapshot);
   const [view, setView] = useState<"lobby" | "play">("lobby");
-  const [note, setNote] = useState<string | null>(null);
+  const [name, setNameValue] = useState(() => (typeof window === "undefined" ? "" : getName("")));
   const rttRef = useRef<HTMLSpanElement>(null);
 
   useEffect(() => {
@@ -99,7 +101,7 @@ export function GuestJoin({ code }: { code: string }) {
         </div>
 
         <div className="flex flex-wrap justify-center gap-3">
-          <PillButton disabled={!connected} onClick={() => setNote("Touch controls arrive in the next milestone.")}>
+          <PillButton disabled={!connected} onClick={() => play("touch")}>
             Touch controls
           </PillButton>
           <PillButton disabled={!connected} onClick={() => play("keyboard")}>
@@ -114,17 +116,15 @@ export function GuestJoin({ code }: { code: string }) {
             Just watch
           </button>
         </div>
-        {note && (
-          <p role="status" className="text-sm font-bold text-text-muted">
-            {note}
-          </p>
-        )}
+        <div className="w-full max-w-[260px]">
+          <NameField label="Your name" value={name} onChange={setNameValue} onCommit={() => session.rename(name)} />
+        </div>
       </main>
 
       <Footer
         status={
           <span className="inline-flex items-center gap-2 font-bold">
-            <Dot className={connected ? "bg-ok" : snap.status === "connecting" ? "bg-slot-empty" : "bg-danger"} />
+            <Dot className={connected ? "bg-ok" : snap.status === "connecting" || snap.status === "waiting" ? "bg-slot-empty" : "bg-danger"} />
             {connected ? "Connected" : statusText(snap.status, snap.error)}
             <span ref={rttRef} className="text-text" />
             {snap.spectators > 0 && <span>{snap.spectators} watching</span>}
@@ -141,9 +141,11 @@ export function GuestJoin({ code }: { code: string }) {
   );
 }
 
-function statusText(status: string, error: string | null) {
+export function statusText(status: GuestSnapshot["status"], error: string | null) {
   if (status === "connecting") return "Connecting to the room";
+  if (status === "waiting") return "Waiting for the host to come back";
   if (status === "ended") return "The host ended the session.";
+  if (status === "kicked") return "The host removed you from the room.";
   if (status === "error") return error ?? "Could not connect.";
   return "Waiting for the host to start a game";
 }

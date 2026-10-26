@@ -4,11 +4,14 @@ import { installAudioTap, type AudioTap } from "@/lib/emulator/audio-tap";
 import { coreForFile, selfHostedCores } from "@/lib/emulator/cores";
 import { InputInjector, REMOTE_PLAYERS, remoteBindingsConfig } from "@/lib/emulator/injector";
 import { pinCanvasSize } from "@/lib/emulator/pin-canvas";
-import { HOST_PEER, stampPeer } from "@/lib/net/overlay";
-import type { OverlayController } from "@/lib/overlay/controller";
-import { getName } from "@/lib/identity";
+import { SlotReservations } from "@/lib/host/reservations";
+import { clearResume, loadResume, saveResumeRom, saveResumeState } from "@/lib/host/resume-store";
+import { getName, MAX_NAME, setName } from "@/lib/identity";
+import { gameTitle } from "@/lib/library/entries";
 import { preferCodec } from "@/lib/net/codecs";
+import { perFrameMs } from "@/lib/net/latency";
 import { fetchIceConfig, PeerLink } from "@/lib/net/link";
+import { HOST_PEER, stampPeer } from "@/lib/net/overlay";
 import {
   decodeInput,
   seqNewer,
@@ -19,6 +22,7 @@ import {
   type PlayerInfo,
 } from "@/lib/net/protocol";
 import { MAX_GUESTS, newRoomCode, peerIdFor } from "@/lib/net/room";
+import type { OverlayController } from "@/lib/overlay/controller";
 
 // The host's side of a room: PeerJS signaling, one PeerLink per guest, the
 // emulator, and the input path from guests into RetroArch. Plain module state,
@@ -30,10 +34,15 @@ export const STREAM_SIZE = { width: 512, height: 448 };
 const STREAM_MAX_BITRATE = 4_000_000;
 /** Zero a player's buttons if their packets stop (tab hidden, network drop). */
 const INPUT_TIMEOUT_MS = 250;
+/** A dropped player's slot waits this long for them to reconnect. */
+const SLOT_HOLD_MS = 60_000;
+/** Save a resume state this often while playing. */
+const AUTOSAVE_MS = 10_000;
 const ROOM_KEY = "gameroom-room";
 
 type Guest = {
   id: string;
+  token: string;
   name: string;
   link: PeerLink;
   /** 0 = spectator. */
@@ -45,7 +54,13 @@ type Guest = {
   hasMedia: boolean;
   /** Pointer and ink identity, 1..255. */
   overlayId: number;
+  /** Kicked or replaced: don't hold a slot for this connection when it closes. */
+  forget: boolean;
+  /** Previous encoder counters, for per-frame encode time. */
+  enc: { time: number; frames: number };
 };
+
+export type GuestInfo = { id: string; name: string; slot: number; rttMs: number };
 
 export type HostSnapshot = {
   status: "idle" | "opening" | "open" | "error";
@@ -54,7 +69,13 @@ export type HostSnapshot = {
   hostName: string;
   players: PlayerInfo[];
   spectators: number;
+  /** Everyone connected, players and spectators. */
+  guests: GuestInfo[];
   rom: { file: File; game: Game } | null;
+  /** True when the ROM came from a resume record and will boot from its state. */
+  resuming: boolean;
+  /** False until the resume record has been checked, so /play doesn't flash "No game". */
+  restored: boolean;
   running: boolean;
 };
 
@@ -66,12 +87,16 @@ class HostSession {
     hostName: "Host",
     players: [],
     spectators: 0,
+    guests: [],
     rom: null,
+    resuming: false,
+    restored: false,
     running: false,
   };
   private readonly listeners = new Set<() => void>();
   private peer: Peer | null = null;
   private readonly guests = new Map<string, Guest>();
+  private readonly reservations = new SlotReservations(SLOT_HOLD_MS);
   private emu: Nostalgist | null = null;
   private tap: AudioTap | null = null;
   private injector: InputInjector | null = null;
@@ -79,6 +104,8 @@ class HostSession {
   private timers: number[] = [];
   private overlay: OverlayController | null = null;
   private peers: OverlayPeer[] = [];
+  private resumeState: Blob | null = null;
+  private restored = false;
 
   subscribe = (fn: () => void) => {
     this.listeners.add(fn);
@@ -98,8 +125,12 @@ class HostSession {
     const { Peer } = await import("peerjs");
     const config = await fetchIceConfig();
 
-    let code = readRoom() ?? newRoomCode();
-    for (let attempt = 0; attempt < 5; attempt++) {
+    // After a refresh, reclaim the same code so guests reconnect to it. The
+    // broker can take a moment to free the old id, so retry it before giving up.
+    const saved = readRoom();
+    let code = saved ?? newRoomCode();
+    let sameCodeTries = saved ? 6 : 0;
+    for (let attempt = 0; attempt < 12; attempt++) {
       const peer = new Peer(peerIdFor(code), { config, debug: 0 });
       const result = await new Promise<"open" | "taken" | Error>((resolve) => {
         peer.once("open", () => resolve("open"));
@@ -111,7 +142,9 @@ class HostSession {
         this.peer = peer;
         writeRoom(code);
         peer.on("connection", (conn) => this.accept(conn));
-        peer.on("disconnected", () => peer.reconnect());
+        peer.on("disconnected", () => {
+          if (!peer.destroyed) peer.reconnect();
+        });
         this.set({ status: "open", code });
         this.startTimers();
         this.publishPlayers();
@@ -122,16 +155,40 @@ class HostSession {
         this.set({ status: "error", error: result.message });
         return;
       }
-      code = newRoomCode();
+      if (sameCodeTries-- > 0) await new Promise((r) => setTimeout(r, 1500));
+      else code = newRoomCode();
     }
     this.set({ status: "error", error: "Could not get a free room code." });
   }
 
-  setRom(file: File): string | null {
+  /** Loads the resume record, if any, as the current ROM. Runs once per page load. */
+  async restore() {
+    if (this.restored) return;
+    this.restored = true;
+    const rec = await loadResume();
+    if (rec && !this.snapshot.rom) {
+      this.resumeState = rec.state;
+      this.setRom(new File([rec.rom], rec.romName), { persist: false });
+    }
+    this.set({ restored: true, resuming: !!rec?.state && !this.snapshot.running });
+  }
+
+  setRom(file: File, { persist = true } = {}): string | null {
+    if (this.emu) return "End the current game first.";
     if (!coreForFile(file.name)) return "Only SNES ROMs (.sfc, .smc) work right now.";
-    const title = file.name.replace(/\.[^.]+$/, "").replace(/\s*\([^)]*\)/g, "");
-    this.set({ rom: { file, game: { title, system: "Super Nintendo" } } });
+    const title = gameTitle(file.name);
+    if (persist) {
+      this.resumeState = null;
+      void saveResumeRom(file.name, file);
+    }
+    this.set({ rom: { file, game: { title, system: "Super Nintendo" } }, resuming: false });
     return null;
+  }
+
+  setHostName(name: string) {
+    setName(name);
+    this.set({ hostName: getName("Host") });
+    this.publishPlayers(true);
   }
 
   /** Boots the ROM into `canvas` and starts streaming. No-op if already running. */
@@ -149,10 +206,14 @@ class HostSession {
       element: canvas,
       size: STREAM_SIZE,
       ...selfHostedCores,
+      // Resume where the last session stopped, if we have a state for this ROM.
+      ...(this.resumeState ? { state: { fileName: "resume.state", fileContent: this.resumeState } } : {}),
       retroarchConfig: {
         video_smooth: false,
         // 1:1 PAR: 256x224 fills 512x448 at exactly 2x. See docs/m1-spike-notes.md.
         aspect_ratio_index: 21,
+        // No thumbnail work on each save; we only need the state.
+        savestate_thumbnail_enable: false,
         ...remoteBindingsConfig(),
       },
     });
@@ -168,10 +229,17 @@ class HostSession {
     audio?.getAudioTracks().forEach((t) => stream.addTrack(t));
     this.stream = stream;
 
-    this.set({ running: true });
+    this.set({ running: true, resuming: false });
     this.broadcast({ t: "game", game: rom.game });
     for (const guest of this.guests.values()) void this.sendMedia(guest);
+    this.timers.push(window.setInterval(() => void this.autosave(), AUTOSAVE_MS));
+    // One last save as the tab goes to the background (or is about to close).
+    document.addEventListener("visibilitychange", this.onHidden);
   }
+
+  private onHidden = () => {
+    if (document.hidden) void this.autosave(true);
+  };
 
   pause() {
     this.emu?.pause();
@@ -180,21 +248,57 @@ class HostSession {
     this.emu?.resume();
   }
 
-  /** Ends the session for everyone. */
+  /** Ends the session for everyone, on purpose: no grace period, no resume. */
   end() {
     this.broadcast({ t: "end" });
     for (const g of this.guests.values()) g.link.close();
     this.guests.clear();
+    document.removeEventListener("visibilitychange", this.onHidden);
     this.emu?.exit({ removeCanvas: false });
     this.tap?.uninstall();
     this.stream?.getTracks().forEach((t) => t.stop());
     this.timers.forEach(clearInterval);
     this.peer?.destroy();
     clearRoom();
+    void clearResume();
     this.emu = this.tap = this.injector = this.stream = this.peer = null;
+    this.resumeState = null;
     this.timers = [];
-    this.set({ status: "idle", code: null, players: [], spectators: 0, rom: null, running: false });
+    this.peers = [];
+    this.set({ status: "idle", code: null, players: [], spectators: 0, guests: [], rom: null, resuming: false, running: false });
   }
+
+  // ---------- Player management ----------
+
+  /** Moves a guest to a player slot (swapping with whoever has it) or to spectating (0). */
+  setSlot(guestId: string, slot: number) {
+    const guest = this.guests.get(guestId);
+    if (!guest || guest.slot === slot) return;
+    if (slot && !REMOTE_PLAYERS.includes(slot)) return;
+    const other = slot ? [...this.guests.values()].find((g) => g.slot === slot) : undefined;
+    if (other) this.assign(other, guest.slot);
+    this.assign(guest, slot);
+    this.publishPlayers();
+  }
+
+  kick(guestId: string) {
+    const guest = this.guests.get(guestId);
+    if (!guest) return;
+    guest.forget = true;
+    this.reservations.ban(guest.token);
+    guest.link.sendControl({ t: "kicked" });
+    // Let the message flush before closing.
+    setTimeout(() => guest.link.close(), 200);
+  }
+
+  private assign(guest: Guest, slot: number) {
+    this.release(guest);
+    guest.slot = slot;
+    guest.hasSeq = false;
+    guest.link.sendControl({ t: "slot", slot });
+  }
+
+  // ---------- Overlay ----------
 
   /** Shows guests' hands and ink on the host view; the host's own go to everyone. */
   attachOverlay(overlay: OverlayController) {
@@ -215,18 +319,24 @@ class HostSession {
     },
   };
 
-  /** Worst guest RTT and the first guest's outbound video fps, for the host pill. */
+  // ---------- Stats ----------
+
+  /** Worst guest RTT and outbound video fps, for the host pill. */
   async sampleStats(): Promise<{ rttMs: number; fps: number | null; guests: number }> {
     let rttMs = 0;
     let fps: number | null = null;
     for (const g of this.guests.values()) {
       rttMs = Math.max(rttMs, g.link.rttMs);
-      if (fps === null && g.hasMedia) {
-        const stats = await g.link.pc.getStats();
-        stats.forEach((s) => {
-          if (s.type === "outbound-rtp" && s.kind === "video" && s.framesPerSecond) fps = s.framesPerSecond;
-        });
-      }
+      if (!g.hasMedia) continue;
+      const stats = await g.link.pc.getStats();
+      stats.forEach((s) => {
+        if (s.type !== "outbound-rtp" || s.kind !== "video") return;
+        if (fps === null && s.framesPerSecond) fps = s.framesPerSecond;
+        // Each guest learns our encode time for their latency estimate.
+        const encodeMs = perFrameMs(s.totalEncodeTime ?? 0, s.framesEncoded ?? 0, g.enc.time, g.enc.frames);
+        g.enc = { time: s.totalEncodeTime ?? 0, frames: s.framesEncoded ?? 0 };
+        if (encodeMs) g.link.sendControl({ t: "stats", encodeMs });
+      });
     }
     return { rttMs, fps, guests: this.guests.size };
   }
@@ -244,6 +354,7 @@ class HostSession {
       while (used.has(overlayId) && overlayId < 255) overlayId++;
       const guest: Guest = {
         id: conn.peer,
+        token: "",
         overlayId,
         name: "Guest",
         slot: 0,
@@ -252,6 +363,8 @@ class HostSession {
         lastInputAt: 0,
         input: { buttons: 0, lx: 0, ly: 0, rx: 0, ry: 0 },
         hasMedia: false,
+        forget: false,
+        enc: { time: 0, frames: 0 },
         link: new PeerLink(conn, {
           onControl: (msg) => this.onControl(guest, msg),
           onInput: (view) => this.onInput(guest, view),
@@ -264,10 +377,27 @@ class HostSession {
     });
   }
 
+  private connectedSlots() {
+    return new Set([...this.guests.values()].filter((g) => g.slot).map((g) => g.slot));
+  }
+
+  /** Connected players' slots plus slots held for dropped players. */
+  private takenSlots() {
+    const taken = this.reservations.heldSlots(performance.now());
+    for (const slot of this.connectedSlots()) taken.add(slot);
+    return taken;
+  }
+
   private onControl(guest: Guest, msg: ControlMessage) {
     switch (msg.t) {
-      case "hello":
-        guest.name = msg.name.slice(0, 24) || "Guest";
+      case "hello": {
+        if (this.reservations.isBanned(msg.token)) {
+          guest.link.sendControl({ t: "kicked" });
+          setTimeout(() => guest.link.close(), 200);
+          return;
+        }
+        guest.token = msg.token;
+        guest.name = msg.name.slice(0, MAX_NAME) || "Guest";
         guest.link.sendControl({
           t: "welcome",
           hostName: this.snapshot.hostName,
@@ -275,24 +405,38 @@ class HostSession {
           players: this.snapshot.players,
           spectators: this.snapshot.spectators,
         });
+        // A reload can arrive before the old connection is noticed as gone:
+        // the new one takes over its slot.
+        let slot = 0;
+        const old = [...this.guests.values()].find((g) => g !== guest && g.token === msg.token);
+        if (old) {
+          slot = old.slot;
+          old.forget = true;
+          this.release(old);
+          this.guests.delete(old.id);
+          old.link.close();
+        }
+        // A reconnect gets its old slot back.
+        slot ||= this.reservations.claim(msg.token, performance.now(), this.connectedSlots());
+        if (slot) this.assign(guest, slot);
         // Everyone gets the stream, players and spectators alike.
         if (this.stream) void this.sendMedia(guest);
         this.publishPlayers();
         break;
+      }
+      case "name":
+        guest.name = msg.name.slice(0, MAX_NAME) || "Guest";
+        this.publishPlayers(true);
+        break;
       case "claim": {
         if (guest.slot) break;
-        const taken = new Set([...this.guests.values()].map((g) => g.slot));
-        const slot = REMOTE_PLAYERS.find((s) => !taken.has(s)) ?? 0;
-        guest.slot = slot;
-        guest.hasSeq = false;
-        guest.link.sendControl({ t: "slot", slot });
+        const taken = this.takenSlots();
+        this.assign(guest, REMOTE_PLAYERS.find((s) => !taken.has(s)) ?? 0);
         this.publishPlayers();
         break;
       }
       case "unclaim":
-        this.release(guest);
-        guest.slot = 0;
-        guest.link.sendControl({ t: "slot", slot: 0 });
+        this.assign(guest, 0);
         this.publishPlayers();
         break;
     }
@@ -328,6 +472,7 @@ class HostSession {
 
   private drop(guest: Guest) {
     this.release(guest);
+    if (!guest.forget && guest.token) this.reservations.hold(guest.token, guest.slot, performance.now());
     this.guests.delete(guest.id);
     this.publishPlayers();
   }
@@ -359,34 +504,54 @@ class HostSession {
     }
   }
 
+  /** Saves a resume state. Skipped while hidden (the emulator isn't advancing). */
+  private async autosave(force = false) {
+    const emu = this.emu;
+    if (!emu || (document.hidden && !force)) return;
+    const t0 = performance.now();
+    const { state } = await emu.saveState();
+    if (process.env.NODE_ENV === "development") {
+      console.debug(`[gameroom] autosave ${(state.size / 1024) | 0} KB in ${(performance.now() - t0).toFixed(1)} ms`);
+    }
+    await saveResumeState(state);
+  }
+
   private broadcast(msg: ControlMessage) {
     for (const g of this.guests.values()) g.link.sendControl(msg);
   }
 
-  private publishPlayers() {
+  private publishPlayers(force = false) {
     const players: PlayerInfo[] = [{ slot: 1, name: this.snapshot.hostName, isHost: true }];
+    const guests: GuestInfo[] = [];
     let spectators = 0;
     for (const g of this.guests.values()) {
-      if (g.slot) players.push({ slot: g.slot, name: g.name, rttMs: Math.round(g.link.rttMs) });
+      const rttMs = Math.round(g.link.rttMs);
+      guests.push({ id: g.id, name: g.name, slot: g.slot, rttMs });
+      if (g.slot) players.push({ slot: g.slot, name: g.name, rttMs });
       else spectators++;
     }
     players.sort((a, b) => a.slot - b.slot);
-    this.publishPeers();
+    this.publishPeers(force);
     const prev = this.snapshot;
     const same =
+      !force &&
       prev.spectators === spectators &&
-      prev.players.length === players.length &&
-      prev.players.every((p, i) => p.slot === players[i].slot && p.name === players[i].name && p.rttMs === players[i].rttMs);
+      prev.guests.length === guests.length &&
+      prev.guests.every((g, i) => g.id === guests[i].id && g.slot === guests[i].slot && g.name === guests[i].name && g.rttMs === guests[i].rttMs) &&
+      prev.players.length === players.length;
     if (same) return;
-    this.set({ players, spectators });
+    this.set({ players, spectators, guests });
     this.broadcast({ t: "players", players, spectators });
   }
 
-  private publishPeers() {
+  private publishPeers(force: boolean) {
     const peers: OverlayPeer[] = [{ id: HOST_PEER, name: this.snapshot.hostName, slot: 1 }];
     for (const g of this.guests.values()) peers.push({ id: g.overlayId, name: g.name, slot: g.slot });
     const prev = this.peers;
-    if (prev.length === peers.length && prev.every((p, i) => p.id === peers[i].id && p.name === peers[i].name && p.slot === peers[i].slot)) return;
+    const same =
+      prev.length === peers.length &&
+      prev.every((p, i) => p.id === peers[i].id && p.name === peers[i].name && p.slot === peers[i].slot);
+    if (same && !force) return;
     this.peers = peers;
     this.overlay?.setPeers(peers, HOST_PEER);
     for (const g of this.guests.values()) g.link.sendControl({ t: "peers", peers, self: g.overlayId });

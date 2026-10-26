@@ -9,22 +9,75 @@ import { useInitialFocus, useNavAction } from "@/lib/nav/react";
  * Latency and fps pill over the game. Filled by writing to the DOM from a
  * stats loop (see setPill), never by React state, so it costs no re-renders.
  */
-export const StatsPill = forwardRef<HTMLSpanElement>(function StatsPill(_, ref) {
-  return (
+export const StatsPill = forwardRef<HTMLSpanElement, { onClick?: () => void; expanded?: boolean }>(function StatsPill(
+  { onClick, expanded },
+  ref,
+) {
+  const body = (
     <span
       ref={ref}
-      className="absolute top-6 left-6 z-10 inline-flex items-center gap-2 rounded-full bg-white/92 px-3.5 py-[7px] text-[13px] font-extrabold"
+      className="inline-flex items-center gap-2 rounded-full bg-white/92 px-3.5 py-[7px] text-[13px] font-extrabold text-text"
     >
       <Dot className="bg-slot-empty" size={8} />
       <span data-pill="rtt">Connecting</span>
       <span data-pill="fps" className="font-bold text-text-muted" />
     </span>
   );
+  if (!onClick) return <span className="absolute top-6 left-6 z-10">{body}</span>;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-expanded={expanded}
+      aria-label="Latency details"
+      className="ring-row absolute top-6 left-6 z-10 rounded-full"
+    >
+      {body}
+    </button>
+  );
 });
+
+const BREAKDOWN_ROWS = [
+  ["network", "Network round trip"],
+  ["frames", "Waiting on frames"],
+  ["encode", "Host encode"],
+  ["buffer", "Jitter buffer"],
+  ["decode", "Decode"],
+  ["total", "Estimated total"],
+] as const;
+
+/** Where a guest's input-to-screen time goes. Values are written by setBreakdown. */
+export const LatencyBreakdown = forwardRef<HTMLDListElement>(function LatencyBreakdown(_, ref) {
+  return (
+    <dl
+      ref={ref}
+      className="absolute top-[70px] left-6 z-10 grid min-w-[220px] grid-cols-[1fr_auto] gap-x-6 gap-y-1 rounded-card bg-white/95 px-4 py-3 text-[13px] font-bold text-text shadow-soft"
+    >
+      {BREAKDOWN_ROWS.map(([key, label]) => (
+        <div key={key} className={`contents ${key === "total" ? "font-extrabold" : ""}`}>
+          <dt className={key === "total" ? "mt-1 border-t border-bg pt-1" : "text-text-muted"}>{label}</dt>
+          <dd data-lat={key} className={`text-right tabular-nums ${key === "total" ? "mt-1 border-t border-bg pt-1" : ""}`}>
+            ...
+          </dd>
+        </div>
+      ))}
+    </dl>
+  );
+});
+
+export function setBreakdown(el: HTMLElement | null, values: Record<(typeof BREAKDOWN_ROWS)[number][0], number>) {
+  if (!el) return;
+  for (const [key] of BREAKDOWN_ROWS) {
+    const dd = el.querySelector<HTMLElement>(`[data-lat="${key}"]`);
+    const text = `${values[key]} ms`;
+    if (dd && dd.textContent !== text) dd.textContent = text;
+  }
+}
 
 const DOT_CLASSES = ["bg-ok", "bg-p4", "bg-danger", "bg-slot-empty"];
 
-export function setPill(pill: HTMLElement | null, rttMs: number | null, fps: number | null) {
+/** `label` replaces the RTT text, e.g. with the guest's estimated total. */
+export function setPill(pill: HTMLElement | null, rttMs: number | null, fps: number | null, label?: string) {
   if (!pill) return;
   const dot = pill.firstElementChild as HTMLElement;
   const rtt = pill.querySelector<HTMLElement>('[data-pill="rtt"]')!;
@@ -34,7 +87,7 @@ export function setPill(pill: HTMLElement | null, rttMs: number | null, fps: num
     dot.classList.remove(...DOT_CLASSES);
     dot.classList.add(dotClass);
   }
-  const rttText = rttMs === null ? "Local" : `${Math.round(rttMs)} ms`;
+  const rttText = label ?? (rttMs === null ? "Local" : `${Math.round(rttMs)} ms`);
   const fpsText = fps === null ? "" : `${Math.round(fps)} fps`;
   if (rtt.textContent !== rttText) rtt.textContent = rttText;
   if (f.textContent !== fpsText) f.textContent = fpsText;

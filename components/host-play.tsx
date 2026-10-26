@@ -16,6 +16,15 @@ export function HostPlay() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const host = useHost();
+  // After a refresh straight into /play, booting needs a click first, or the
+  // game's AudioContext starts suspended.
+  const [ready, setReady] = useState(() => typeof navigator === "undefined" || navigator.userActivation?.hasBeenActive !== false);
+
+  // A refresh lands here with no session: reopen the same room and the saved game.
+  useEffect(() => {
+    void hostSession.restore();
+    void hostSession.open();
+  }, []);
 
   useGameMode(!menuOpen && snap.running);
   useNavAction("start", () => setMenuOpen((open) => !open), snap.running);
@@ -23,9 +32,9 @@ export function HostPlay() {
   // Boot once. Re-mounts (e.g. coming back from the home screen) find it running.
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas || !snap.rom) return;
+    if (!canvas || !snap.rom || !ready) return;
     hostSession.boot(canvas).catch((err) => setError(err instanceof Error ? err.message : String(err)));
-  }, [snap.rom]);
+  }, [snap.rom, ready]);
 
   // The menu pauses the game for everyone.
   useEffect(() => {
@@ -49,6 +58,7 @@ export function HostPlay() {
     router.push("/");
   };
 
+  if (!snap.rom && !snap.restored) return <div className="fixed inset-0 bg-game-bg" />;
   if (!snap.rom) return <NoGame onHome={() => router.push("/")} />;
 
   return (
@@ -64,6 +74,7 @@ export function HostPlay() {
         {snap.running && (
           <OverlayLayer frameRef={canvasRef} attach={(o) => hostSession.attachOverlay(o)} sink={hostSession.overlaySink} />
         )}
+        {!ready && <ContinueButton title={snap.rom.game.title} onClick={() => setReady(true)} />}
         <StatsPill ref={pillRef} />
         <MenuHint show={!menuOpen && snap.running} />
         {error && (
@@ -123,6 +134,20 @@ function HostMenu({
       </MenuRow>
       {note && <MenuNote>{note}</MenuNote>}
     </MenuPanel>
+  );
+}
+
+function ContinueButton({ title, onClick }: { title: string; onClick: () => void }) {
+  useInitialFocus();
+  return (
+    <button
+      type="button"
+      data-nav-default=""
+      onClick={onClick}
+      className="ring-row absolute min-h-14 rounded-full bg-surface px-7 text-base font-extrabold text-text shadow-lift"
+    >
+      Continue {title}
+    </button>
   );
 }
 

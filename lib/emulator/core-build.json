@@ -1,0 +1,5 @@
+{
+  "repo": "arianrhodsandlot/retroarch-emscripten-build",
+  "version": "v1.22.2",
+  "cores": ["snes9x"]
+}

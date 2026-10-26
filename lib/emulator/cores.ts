@@ -1,4 +1,6 @@
-// Cores are self-hosted in public/cores (see scripts/fetch-cores.mjs).
+import build from "./core-build.json";
+
+// Cores are self-hosted in public/cores/<version> (see scripts/fetch-cores.mjs).
 
 export type CoreName = "snes9x";
 
@@ -13,7 +15,7 @@ export function coreForFile(fileName: string): CoreName | null {
 }
 
 const coreUrl = (core: string, ext: "js" | "wasm") =>
-  new URL(`/cores/${core}_libretro.${ext}`, window.location.href).href;
+  new URL(`/cores/${build.version}/${core}_libretro.${ext}`, window.location.href).href;
 
 /** Spread into Nostalgist.launch options. */
 export const selfHostedCores = {

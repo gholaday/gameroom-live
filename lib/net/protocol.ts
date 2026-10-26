@@ -64,7 +64,9 @@ export type PlayerInfo = { slot: number; name: string; isHost?: boolean; rttMs?:
 export type OverlayPeer = { id: number; name: string; slot: number };
 
 export type ControlMessage =
-  | { t: "hello"; name: string }
+  /** `token` is per room and per tab, so a reconnect gets its slot back. */
+  | { t: "hello"; name: string; token: string }
+  | { t: "name"; name: string }
   | { t: "welcome"; hostName: string; game: Game | null; players: PlayerInfo[]; spectators: number }
   | { t: "claim" }
   | { t: "unclaim" }
@@ -76,4 +78,7 @@ export type ControlMessage =
   | { t: "answer"; sdp: string }
   /** `self` is the receiving guest's own overlay id. */
   | { t: "peers"; peers: OverlayPeer[]; self: number }
+  /** Host encode time per frame for this guest's stream, about once a second. */
+  | { t: "stats"; encodeMs: number }
+  | { t: "kicked" }
   | { t: "end" };

@@ -1,5 +1,5 @@
 import type { Peer } from "peerjs";
-import { getName } from "@/lib/identity";
+import { getName, setName, tabToken } from "@/lib/identity";
 import { KEYBOARD, readGamepad } from "@/lib/input/retropad";
 import { fetchIceConfig, PeerLink } from "@/lib/net/link";
 import {
@@ -20,11 +20,16 @@ import { peerIdFor } from "@/lib/net/room";
 
 /** Resend unchanged state at this interval so the host's 250 ms timeout never trips. */
 const HEARTBEAT_MS = 1000 / 60;
+/** How long to keep trying after the host drops before calling it over. */
+const HOST_GRACE_MS = 30_000;
+const RETRY_MS = 2000;
+const CONNECT_TIMEOUT_MS = 8000;
 
-export type InputMode = "gamepad" | "keyboard";
+export type InputMode = "gamepad" | "keyboard" | "touch";
 
 export type GuestSnapshot = {
-  status: "connecting" | "connected" | "ended" | "error";
+  /** "waiting": the host dropped and we're retrying for up to 30 s. */
+  status: "connecting" | "connected" | "waiting" | "ended" | "kicked" | "error";
   error: string | null;
   hostName: string;
   game: Game | null;
@@ -59,11 +64,19 @@ export class GuestSession {
   private readonly sent: InputState = { buttons: -1, lx: 0, ly: 0, rx: 0, ry: 0 };
   private readonly packet = new DataView(new ArrayBuffer(INPUT_BYTES));
   private keyButtons = 0;
+  private touchButtons = 0;
   private overlay: OverlayController | null = null;
   private peers: OverlayPeer[] = [];
   private selfId = 0;
   /** Bumped by connect/close so a stale async connect (React Strict Mode) bows out. */
   private gen = 0;
+  /** When the host dropped, for the grace period. 0 while connected. */
+  private droppedAt = 0;
+  private retryTimer = 0;
+  /** Had (or asked for) a slot. After a host reload, which forgets slots, ask again. */
+  private wantSlot = false;
+  /** Host encode time per frame, from the host's `stats` messages. */
+  encodeMs = 0;
 
   constructor(private readonly code: string) {}
 
@@ -77,6 +90,9 @@ export class GuestSession {
   }
   get pc() {
     return this.link?.pc ?? null;
+  }
+  get inputMode() {
+    return this.mode;
   }
 
   private set(patch: Partial<GuestSnapshot>) {
@@ -92,11 +108,14 @@ export class GuestSession {
     const { Peer } = await import("peerjs");
     const config = await fetchIceConfig();
     if (gen !== this.gen) return;
-    this.set({ status: "connecting", error: null });
+    if (!this.droppedAt) this.set({ status: "connecting", error: null });
     const peer = new Peer({ config, debug: 0 });
     this.peer = peer;
     peer.on("error", (err) => {
+      if (gen !== this.gen || this.peer !== peer) return;
       const type = (err as { type?: string }).type;
+      // While waiting out a host drop, the room being gone is expected: retry.
+      if (this.droppedAt) return this.retry(gen);
       this.set({
         status: "error",
         error: type === "peer-unavailable" ? "This room is closed or the code is wrong." : err.message,
@@ -109,27 +128,62 @@ export class GuestSession {
         onCursor: (buf) => this.overlay?.remoteCursor(buf),
         onInk: (buf) => this.overlay?.remoteInk(buf),
         onClose: () => {
-          if (gen !== this.gen) return;
+          if (gen !== this.gen || this.link !== link) return;
           this.stopInput();
-          if (this.snapshot.status !== "ended") this.set({ status: "ended" });
+          const s = this.snapshot.status;
+          if (s === "ended" || s === "kicked") return;
+          // Unexpected drop: the host may be refreshing. Hold on for a bit.
+          if (!this.droppedAt) this.droppedAt = performance.now();
+          this.set({ status: "waiting", stream: null, slot: 0, claiming: false });
+          this.retry(gen);
         },
       });
       this.link = link;
       link.pc.addEventListener("track", (e) => this.onTrack(e));
+      // An attempt can hang without ever opening, closing or failing (e.g.
+      // reaching a host that just reloaded). Give it a deadline.
+      setTimeout(() => {
+        if (gen !== this.gen || this.link !== link || conn.open) return;
+        if (this.droppedAt) this.retry(gen);
+        else this.set({ status: "error", error: "Could not reach the room. Check the code and try again." });
+      }, CONNECT_TIMEOUT_MS);
       conn.on("open", () => {
+        if (gen !== this.gen) return;
+        const reconnect = !!this.droppedAt;
+        this.droppedAt = 0;
         this.set({ status: "connected" });
-        link.sendControl({ t: "hello", name: getName("Guest") });
+        link.sendControl({ t: "hello", name: getName("Guest"), token: tabToken(this.code) });
+        // The host ignores this if the hello already got our slot back.
+        if (reconnect && this.wantSlot) link.sendControl({ t: "claim" });
       });
     });
+  }
+
+  /** Tears down the current attempt and tries again, until the grace period runs out. */
+  private retry(gen: number) {
+    if (gen !== this.gen || this.retryTimer) return;
+    if (performance.now() - this.droppedAt > HOST_GRACE_MS) {
+      this.teardown();
+      this.set({ status: "ended" });
+      return;
+    }
+    this.retryTimer = window.setTimeout(() => {
+      this.retryTimer = 0;
+      if (gen !== this.gen) return;
+      this.teardown();
+      void this.connect();
+    }, RETRY_MS);
   }
 
   /** Ask for a controller slot. Input starts flowing once the host assigns one. */
   claim(mode: InputMode) {
     this.mode = mode;
     if (this.snapshot.slot) {
+      this.stopInput();
       this.startInput();
       return;
     }
+    this.wantSlot = true;
     this.set({ claiming: true });
     this.link?.sendControl({ t: "claim" });
   }
@@ -137,8 +191,23 @@ export class GuestSession {
   /** Give up the slot and spectate. */
   watch() {
     this.stopInput();
+    this.wantSlot = false;
     if (this.snapshot.slot) this.link?.sendControl({ t: "unclaim" });
     this.set({ claiming: false });
+  }
+
+  rename(name: string) {
+    setName(name);
+    this.link?.sendControl({ t: "name", name: getName("Guest") });
+  }
+
+  /** Touch pad state. Sent right away, like keyboard events. */
+  setTouchButtons(mask: number) {
+    if (mask === this.touchButtons) return;
+    this.touchButtons = mask;
+    if (this.mode !== "touch" || !this.raf) return;
+    this.state.buttons = mask;
+    this.send(performance.now());
   }
 
   attachOverlay(overlay: OverlayController) {
@@ -158,10 +227,18 @@ export class GuestSession {
   close() {
     this.gen++;
     this.stopInput();
-    this.link?.close();
-    this.peer?.destroy();
+    this.teardown();
+  }
+
+  private teardown() {
+    clearTimeout(this.retryTimer);
+    this.retryTimer = 0;
+    // Null first, so the close events below read as ours, not a drop.
+    const { link, peer } = this;
     this.link = null;
     this.peer = null;
+    link?.close();
+    peer?.destroy();
   }
 
   private onControl(msg: ControlMessage) {
@@ -176,6 +253,7 @@ export class GuestSession {
         this.set({ game: msg.game });
         break;
       case "slot":
+        this.wantSlot = msg.slot > 0;
         this.set({ slot: msg.slot, claiming: false });
         if (msg.slot) this.startInput();
         else this.stopInput();
@@ -185,9 +263,20 @@ export class GuestSession {
         this.selfId = msg.self;
         this.overlay?.setPeers(msg.peers, msg.self);
         break;
-      case "end":
+      case "stats":
+        this.encodeMs = msg.encodeMs;
+        break;
+      case "kicked":
+        this.gen++;
         this.stopInput();
-        this.set({ status: "ended" });
+        this.teardown();
+        this.set({ status: "kicked", stream: null });
+        break;
+      case "end":
+        this.gen++;
+        this.stopInput();
+        this.teardown();
+        this.set({ status: "ended", stream: null });
         break;
     }
   }
@@ -243,8 +332,8 @@ export class GuestSession {
   private tick = (now: number) => {
     this.raf = requestAnimationFrame(this.tick);
     const s = this.state;
-    if (this.mode === "keyboard") {
-      s.buttons = this.keyButtons;
+    if (this.mode === "keyboard" || this.mode === "touch") {
+      s.buttons = this.mode === "keyboard" ? this.keyButtons : this.touchButtons;
       s.lx = s.ly = s.rx = s.ry = 0;
     } else {
       const pad = firstPad();

@@ -4,14 +4,17 @@
 //
 // Runs before `dev` and `build`. Skips cores that are already present.
 
-import { mkdir, stat, writeFile } from "node:fs/promises";
+import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { BlobReader, BlobWriter, ZipReader } from "@zip.js/zip.js";
 
-// Must match the version Nostalgist expects (see coreVersion in nostalgist.js).
-const BUILD = "arianrhodsandlot/retroarch-emscripten-build@v1.22.2";
-const CORES = ["snes9x"];
-const OUT = path.join(process.cwd(), "public", "cores");
+// Shared with the app (lib/emulator/cores.ts). The version must match what
+// Nostalgist expects (coreVersion in nostalgist.js). Files land in a versioned
+// folder so they can be cached forever.
+const build = JSON.parse(await readFile(path.join(process.cwd(), "lib/emulator/core-build.json"), "utf8"));
+const BUILD = `${build.repo}@${build.version}`;
+const CORES = build.cores;
+const OUT = path.join(process.cwd(), "public", "cores", build.version);
 
 const exists = (p) => stat(p).then(() => true, () => false);
 

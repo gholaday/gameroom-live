@@ -3,9 +3,12 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { QRCodeSVG } from "qrcode.react";
-import { Gamepad2, Plus, Save, Settings, UserPlus, type LucideIcon } from "lucide-react";
+import { FolderOpen, Gamepad2, Plus, RefreshCw, Save, Settings, UserPlus, type LucideIcon } from "lucide-react";
+import { PlayersPanel, SettingsPanel } from "@/components/players-panel";
 import { Avatar, Dot, EmptySlot, Footer, Hint, Pill, type PlayerSlot } from "@/components/ui";
 import { hostSession } from "@/lib/host/session";
+import type { LibraryEntry } from "@/lib/library/entries";
+import { canPickFolder, library } from "@/lib/library/store";
 import type { Game } from "@/lib/net/protocol";
 import { useInitialFocus, useNavAction } from "@/lib/nav/react";
 import { useHost, useOrigin } from "@/lib/use-origin";
@@ -17,7 +20,11 @@ export function HostHome() {
   const snap = useSyncExternalStore(hostSession.subscribe, hostSession.getSnapshot, hostSession.getSnapshot);
   const [note, setNote] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [panel, setPanel] = useState<"players" | "settings" | null>(null);
+  const togglePanel = (p: "players" | "settings") => setPanel((cur) => (cur === p ? null : p));
+  const lib = useSyncExternalStore(library.subscribe, library.getSnapshot, library.getSnapshot);
   const fileRef = useRef<HTMLInputElement>(null);
+  const folderRef = useRef<HTMLInputElement>(null);
   const copyRef = useRef<HTMLButtonElement>(null);
 
   const host = useHost("localhost:3000");
@@ -26,7 +33,9 @@ export function HostHome() {
   const game = snap.rom?.game ?? null;
 
   useEffect(() => {
+    void hostSession.restore();
     void hostSession.open();
+    void library.load();
   }, []);
 
   // Dev shortcut: /?rom=<file in /roms> loads a test ROM without the picker.
@@ -43,7 +52,7 @@ export function HostHome() {
 
   const start = () => {
     if (snap.rom) router.push("/play");
-    else setNote("Open a ROM file first.");
+    else setNote("Pick a game first.");
   };
   const focusInvite = () => {
     copyRef.current?.focus();
@@ -71,7 +80,26 @@ export function HostHome() {
   };
 
   const openRom = (file: File) => {
-    setNote(hostSession.setRom(file));
+    const err = hostSession.setRom(file);
+    setNote(err);
+    if (!err) void library.importFiles([file]);
+  };
+
+  const playEntry = async (entry: LibraryEntry) => {
+    const name = entry.path.split("/").pop();
+    if (snap.rom?.file.name === name) return start();
+    try {
+      const err = hostSession.setRom(await library.file(entry));
+      if (err) setNote(err);
+      else router.push("/play");
+    } catch (e) {
+      setNote(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  const openFolder = () => {
+    if (canPickFolder()) void library.pickFolder();
+    else folderRef.current?.click();
   };
 
   const guests = snap.players.length - 1;
@@ -110,20 +138,38 @@ export function HostHome() {
       <main className="mx-auto flex w-full max-w-[1360px] flex-1 flex-col gap-[34px] px-10 pt-[18px] pb-[30px] max-sm:px-4">
         <section className="flex flex-col gap-3.5" aria-label="Games">
           <div className="flex items-baseline gap-3.5">
-            <h1 className="text-[26px] font-extrabold text-primary-text">{game?.title ?? "Open a ROM to start"}</h1>
-            {game && <span className="text-sm font-bold text-text-muted">{game.system}</span>}
+            <h1 className="text-[26px] font-extrabold text-primary-text">
+              {game?.title ?? (lib.entries.length ? "Pick a game" : "Open your ROM folder to start")}
+            </h1>
+            {game && (
+              <span className="text-sm font-bold text-text-muted">
+                {snap.running ? "Playing now" : snap.resuming ? "Continues where you left off" : game.system}
+              </span>
+            )}
           </div>
           <div className="flex items-end gap-[22px] overflow-x-auto p-3 [scrollbar-width:none]">
-            {game && <GameTile game={game} onClick={start} />}
-            <button
-              type="button"
-              onClick={() => fileRef.current?.click()}
-              data-nav-default={game ? undefined : ""}
-              className="ring-tile box-border flex h-[210px] w-[210px] flex-none flex-col items-center justify-center gap-2.5 rounded-tile border-2 border-dashed border-slot-empty bg-transparent font-bold text-text"
-            >
-              <Plus size={36} strokeWidth={2} aria-hidden />
+            {game && <GameTile game={game} large onClick={start} />}
+            {lib.entries
+              .filter((e) => !snap.rom || e.path.split("/").pop() !== snap.rom.file.name)
+              .map((entry) => (
+                <GameTile
+                  key={entry.path}
+                  game={{ title: entry.title, system: "Super Nintendo" }}
+                  isDefault={false}
+                  onClick={() => void playEntry(entry)}
+                />
+              ))}
+            {lib.needsPermission && (
+              <ActionTile icon={RefreshCw} onClick={() => void library.reconnect().catch((e) => setNote(String(e.message ?? e)))}>
+                Reconnect {lib.folderName}
+              </ActionTile>
+            )}
+            <ActionTile icon={FolderOpen} onClick={openFolder} isDefault={!game && !lib.entries.length}>
+              {lib.folderName ? "Change folder" : "Open ROM folder"}
+            </ActionTile>
+            <ActionTile icon={Plus} onClick={() => fileRef.current?.click()}>
               Open ROM file
-            </button>
+            </ActionTile>
             <input
               ref={fileRef}
               type="file"
@@ -135,15 +181,26 @@ export function HostHome() {
                 e.target.value = "";
               }}
             />
+            <input
+              ref={folderRef}
+              type="file"
+              hidden
+              {...{ webkitdirectory: "" }}
+              onChange={(e) => {
+                const files = [...(e.target.files ?? [])];
+                e.target.value = "";
+                void library.importFiles(files).then((n) => setNote(n ? `Added ${n} games.` : "No SNES ROMs in that folder."));
+              }}
+            />
           </div>
         </section>
 
         <div className="flex flex-wrap items-center justify-between gap-7">
           <div className="flex flex-wrap gap-[22px]">
             <Shortcut icon={UserPlus} label="Invite" ariaLabel="Invite friends" color="text-primary-text" onClick={focusInvite} />
-            <Shortcut icon={Gamepad2} label="Players" color="text-p2" onClick={() => setNote("Players is coming soon.")} />
+            <Shortcut icon={Gamepad2} label="Players" color="text-p2" onClick={() => togglePanel("players")} />
             <Shortcut icon={Save} label="Saves" ariaLabel="Save states" color="text-p3" onClick={() => setNote("Saves are coming soon.")} />
-            <Shortcut icon={Settings} label="Settings" color="text-text-muted" onClick={() => setNote("Settings are coming soon.")} />
+            <Shortcut icon={Settings} label="Settings" color="text-text-muted" onClick={() => togglePanel("settings")} />
           </div>
 
           <section
@@ -182,6 +239,16 @@ export function HostHome() {
             </div>
           </section>
         </div>
+
+        {panel === "players" && (
+          <PlayersPanel
+            hostName={snap.hostName}
+            guests={snap.guests}
+            onSlot={(id, slot) => hostSession.setSlot(id, slot)}
+            onKick={(id) => hostSession.kick(id)}
+          />
+        )}
+        {panel === "settings" && <SettingsPanel name={snap.hostName} onName={(n) => hostSession.setHostName(n)} />}
       </main>
 
       <Footer
@@ -198,14 +265,26 @@ export function HostHome() {
   );
 }
 
-function GameTile({ game, onClick }: { game: Game; onClick: () => void }) {
+function GameTile({
+  game,
+  onClick,
+  large,
+  isDefault = true,
+}: {
+  game: Game;
+  onClick: () => void;
+  large?: boolean;
+  isDefault?: boolean;
+}) {
   return (
     <button
       type="button"
       onClick={onClick}
       aria-label={`${game.title}, ${game.system}`}
-      data-nav-default=""
-      className="ring-tile flex h-[250px] w-[250px] flex-none flex-col overflow-hidden rounded-tile bg-surface p-0 text-left shadow-lift"
+      data-nav-default={isDefault ? "" : undefined}
+      className={`ring-tile flex flex-none flex-col overflow-hidden rounded-tile bg-surface p-0 text-left shadow-lift ${
+        large ? "h-[250px] w-[250px]" : "h-[210px] w-[210px]"
+      }`}
     >
       <BoxArt game={game} />
       <span className="truncate px-3.5 py-2.5 text-sm font-bold text-text">{game.title}</span>
@@ -235,6 +314,30 @@ function BoxArt({ game }: { game: Game }) {
     >
       {initials}
     </span>
+  );
+}
+
+function ActionTile({
+  icon: Icon,
+  children,
+  onClick,
+  isDefault,
+}: {
+  icon: LucideIcon;
+  children: React.ReactNode;
+  onClick: () => void;
+  isDefault?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      data-nav-default={isDefault ? "" : undefined}
+      className="ring-tile box-border flex h-[210px] w-[210px] flex-none flex-col items-center justify-center gap-2.5 rounded-tile border-2 border-dashed border-slot-empty bg-transparent px-4 text-center font-bold text-text"
+    >
+      <Icon size={36} strokeWidth={2} aria-hidden />
+      {children}
+    </button>
   );
 }
 

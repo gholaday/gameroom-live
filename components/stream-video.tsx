@@ -9,8 +9,8 @@ import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "re
  */
 export const StreamVideo = forwardRef<
   HTMLVideoElement,
-  { stream: MediaStream | null; muted?: boolean; className?: string }
->(function StreamVideo({ stream, muted = false, className = "" }, ref) {
+  { stream: MediaStream | null; muted?: boolean; className?: string; soundAtTop?: boolean }
+>(function StreamVideo({ stream, muted = false, className = "", soundAtTop = false }, ref) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [needsSound, setNeedsSound] = useState(false);
   useImperativeHandle(ref, () => videoRef.current!);
@@ -36,6 +36,13 @@ export const StreamVideo = forwardRef<
     setNeedsSound(false);
   };
 
+  // Any tap or click is a gesture that may unmute, including on the touch pad.
+  useEffect(() => {
+    if (!needsSound) return;
+    window.addEventListener("pointerdown", enableSound, { capture: true, once: true });
+    return () => window.removeEventListener("pointerdown", enableSound, { capture: true });
+  }, [needsSound]);
+
   return (
     <>
       <video ref={videoRef} playsInline autoPlay className={`[image-rendering:pixelated] ${className}`} />
@@ -44,7 +51,7 @@ export const StreamVideo = forwardRef<
           type="button"
           onClick={enableSound}
           data-nav="skip"
-          className="absolute right-6 bottom-5 z-10 rounded-full bg-white/92 px-3.5 py-[7px] text-[13px] font-extrabold text-text"
+          className={`absolute right-6 z-10 rounded-full ${soundAtTop ? "top-[68px]" : "bottom-5"} bg-white/92 px-3.5 py-[7px] text-[13px] font-extrabold text-text`}
         >
           Click for sound
         </button>

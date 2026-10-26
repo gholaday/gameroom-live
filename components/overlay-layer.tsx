@@ -12,8 +12,11 @@ export function OverlayLayer({
   frameRef,
   attach,
   sink,
+  interactive = true,
 }: {
   frameRef: RefObject<HTMLElement | null>;
+  /** False shows others' hands and ink but takes no pointer input (touch pad mode). */
+  interactive?: boolean;
   attach: (overlay: OverlayController) => () => void;
   sink: OverlaySink;
 }) {
@@ -54,7 +57,7 @@ export function OverlayLayer({
     // attach and sink are stable session methods; mount once.
   }, [frameRef]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  return <div ref={rootRef} aria-hidden className="absolute z-[5] cursor-crosshair overflow-hidden" />;
+  return <div ref={rootRef} aria-hidden className={`absolute z-[5] overflow-hidden ${interactive ? "cursor-crosshair" : "pointer-events-none"}`} />;
 }
 
 /** The picture's box inside an object-fit: contain element. */
