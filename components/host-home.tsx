@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import { useRouter } from "next/navigation";
 import { QRCodeSVG } from "qrcode.react";
 import {
@@ -15,13 +21,22 @@ import {
   RefreshCw,
   Save,
   Settings,
+  X,
   type LucideIcon,
 } from "lucide-react";
 import { Cartridge, cartSize } from "@/components/cartridge";
 import { ControlsPanel } from "@/components/controls-panel";
 import { ago, Thumb } from "@/components/save-slots";
 import { PlayersPanel, SettingsPanel } from "@/components/players-panel";
-import { Avatar, Dot, EmptySlot, Footer, Hint, Pill, type PlayerSlot } from "@/components/ui";
+import {
+  Avatar,
+  Dot,
+  EmptySlot,
+  Footer,
+  Hint,
+  Pill,
+  type PlayerSlot,
+} from "@/components/ui";
 import { HOST_RESERVED } from "@/lib/emulator/host-input";
 import { ROM_ACCEPT, SYSTEMS, type SystemId } from "@/lib/emulator/systems";
 import type { SaveSlot } from "@/lib/host/saves-store";
@@ -39,12 +54,20 @@ type View = "library" | "saves" | "settings";
 
 export function HostHome() {
   const router = useRouter();
-  const snap = useSyncExternalStore(hostSession.subscribe, hostSession.getSnapshot, hostSession.getSnapshot);
+  const snap = useSyncExternalStore(
+    hostSession.subscribe,
+    hostSession.getSnapshot,
+    hostSession.getSnapshot,
+  );
   const [note, setNote] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [view, setView] = useState<View>("library");
   const [filter, setFilter] = useState<SystemId | "all">("all");
-  const lib = useSyncExternalStore(library.subscribe, library.getSnapshot, library.getSnapshot);
+  const lib = useSyncExternalStore(
+    library.subscribe,
+    library.getSnapshot,
+    library.getSnapshot,
+  );
   const fileRef = useRef<HTMLInputElement>(null);
   const folderRef = useRef<HTMLInputElement>(null);
   const copyRef = useRef<HTMLButtonElement>(null);
@@ -71,11 +94,16 @@ export function HostHome() {
   const shelves = useMemo(
     () =>
       Object.values(SYSTEMS)
-        .map((sys) => ({ sys, games: games.filter((g) => g.game.systemId === sys.id) }))
+        .map((sys) => ({
+          sys,
+          games: games.filter((g) => g.game.systemId === sys.id),
+        }))
         .filter((shelf) => shelf.games.length),
     [games],
   );
-  const shown = shelves.some((sh) => sh.sys.id === filter) ? shelves.filter((sh) => sh.sys.id === filter) : shelves;
+  const shown = shelves.some((sh) => sh.sys.id === filter)
+    ? shelves.filter((sh) => sh.sys.id === filter)
+    : shelves;
   const firstPath = shown[0]?.games[0]?.entry.path;
 
   useEffect(() => {
@@ -90,7 +118,9 @@ export function HostHome() {
     const name = new URLSearchParams(window.location.search).get("rom");
     if (!name || hostSession.getSnapshot().rom) return;
     fetch(`/dev/roms/${encodeURIComponent(name)}`)
-      .then((r) => (r.ok ? r.blob() : Promise.reject(new Error(String(r.status)))))
+      .then((r) =>
+        r.ok ? r.blob() : Promise.reject(new Error(String(r.status))),
+      )
       .then((blob) => hostSession.setRom(new File([blob], name)))
       .catch(() => {});
   }, []);
@@ -117,7 +147,8 @@ export function HostHome() {
   // B closes the players popover or an option view first; on the library it ends the session.
   useNavAction("back", () => {
     const active = document.activeElement;
-    if (active instanceof HTMLElement && playersRef.current?.contains(active)) return active.blur();
+    if (active instanceof HTMLElement && playersRef.current?.contains(active))
+      return active.blur();
     if (view !== "library") return setView("library");
     endSession();
   });
@@ -143,7 +174,8 @@ export function HostHome() {
   // Picking the selected one again starts it.
   const selectEntry = async (entry: LibraryEntry, name: string) => {
     if (snap.rom?.file.name === name) return start();
-    if (snap.running) return setNote("A game is running. End the session to pick another.");
+    if (snap.running)
+      return setNote("A game is running. End the session to pick another.");
     try {
       setNote(hostSession.setRom(await library.file(entry)));
     } catch (e) {
@@ -151,11 +183,21 @@ export function HostHome() {
     }
   };
 
+  const removeEntry = (entry: LibraryEntry, g: Game) => {
+    void library.remove(entry);
+    setNote(
+      entry.kind === "dir"
+        ? `Removed ${g.title}. The file stays in your folder.`
+        : `Removed ${g.title}.`,
+    );
+  };
+
   const openFolder = () => {
     if (canPickFolder()) void library.pickFolder();
     else folderRef.current?.click();
   };
-  const reconnect = () => void library.reconnect().catch((e) => setNote(String(e.message ?? e)));
+  const reconnect = () =>
+    void library.reconnect().catch((e) => setNote(String(e.message ?? e)));
 
   const guests = snap.players.length - 1;
   const status =
@@ -182,7 +224,12 @@ export function HostHome() {
             {SLOTS.map((slot) => {
               const p = snap.players.find((pl) => pl.slot === slot);
               return p ? (
-                <Avatar key={slot} slot={slot} name={p.name} className="shadow-[0_0_0_3px_#fff]" />
+                <Avatar
+                  key={slot}
+                  slot={slot}
+                  name={p.name}
+                  className="shadow-[0_0_0_3px_#fff]"
+                />
               ) : (
                 <EmptySlot key={slot} />
               );
@@ -203,10 +250,20 @@ export function HostHome() {
         </div>
         <div className="flex items-center gap-2.5">
           <Pill>
-            <Dot className={snap.status === "open" ? "bg-ok" : snap.status === "error" ? "bg-danger" : "bg-slot-empty"} />
+            <Dot
+              className={
+                snap.status === "open"
+                  ? "bg-ok"
+                  : snap.status === "error"
+                    ? "bg-danger"
+                    : "bg-slot-empty"
+              }
+            />
             Hosting
           </Pill>
-          <Pill className="text-text-muted">{snap.code ? `Room ${snap.code}` : "No room yet"}</Pill>
+          <Pill className="text-text-muted">
+            {snap.code ? `Room ${snap.code}` : "No room yet"}
+          </Pill>
         </div>
       </header>
 
@@ -214,7 +271,10 @@ export function HostHome() {
         {/* Left: the library, or the view an option opened. Scrolls on its own on wide screens. */}
         <div className="flex min-w-0 flex-col lg:min-h-0 scrollbar lg:overflow-y-auto lg:pr-2 [scrollbar-gutter:stable]">
           {view === "library" ? (
-            <section aria-labelledby="library-title" className="flex flex-col gap-4 pb-8">
+            <section
+              aria-labelledby="library-title"
+              className="flex flex-col gap-4 pb-8"
+            >
               <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 pt-1">
                 <div className="flex items-baseline gap-3">
                   <h1 id="library-title" className="text-[26px] font-extrabold">
@@ -222,7 +282,9 @@ export function HostHome() {
                   </h1>
                   {games.length > 0 && (
                     <span className="text-sm font-bold text-text-muted">
-                      {lib.folderName ? `${games.length} in ${lib.folderName}` : `${games.length} games`}
+                      {lib.folderName
+                        ? `${games.length} in ${lib.folderName}`
+                        : `${games.length} ${games.length === 1 ? "game" : "games"}`}
                     </span>
                   )}
                 </div>
@@ -237,19 +299,33 @@ export function HostHome() {
                       {lib.folderName ? "Change folder" : "Add folder"}
                     </ToolButton>
                   )}
-                  <ToolButton icon={Plus} onClick={() => fileRef.current?.click()}>
+                  <ToolButton
+                    icon={Plus}
+                    onClick={() => fileRef.current?.click()}
+                  >
                     Open file
                   </ToolButton>
                 </div>
               </div>
 
               {shelves.length > 1 && (
-                <div role="tablist" aria-label="System" className="flex flex-wrap gap-2">
-                  <Chip selected={filter === "all"} onClick={() => setFilter("all")}>
+                <div
+                  role="tablist"
+                  aria-label="System"
+                  className="flex flex-wrap gap-2"
+                >
+                  <Chip
+                    selected={filter === "all"}
+                    onClick={() => setFilter("all")}
+                  >
                     All
                   </Chip>
                   {shelves.map(({ sys }) => (
-                    <Chip key={sys.id} selected={filter === sys.id} onClick={() => setFilter(sys.id)}>
+                    <Chip
+                      key={sys.id}
+                      selected={filter === sys.id}
+                      onClick={() => setFilter(sys.id)}
+                    >
                       {sys.name}
                     </Chip>
                   ))}
@@ -259,9 +335,14 @@ export function HostHome() {
               {games.length ? (
                 <div className="flex flex-col gap-9">
                   {shown.map(({ sys, games: list }) => (
-                    <section key={sys.id} aria-label={`${sys.name} games`} className="flex flex-col gap-2">
+                    <section
+                      key={sys.id}
+                      aria-label={`${sys.name} games`}
+                      className="flex flex-col gap-2"
+                    >
                       <h2 className="text-[13px] font-extrabold tracking-wide text-text-muted uppercase">
-                        {sys.name} <span className="font-bold">{list.length}</span>
+                        {sys.name}{" "}
+                        <span className="font-bold">{list.length}</span>
                       </h2>
                       {/* Side padding leaves room for the focus ring. */}
                       <ul className="flex flex-wrap items-end gap-x-6 gap-y-7 px-3 pt-4">
@@ -272,6 +353,12 @@ export function HostHome() {
                               selected={snap.rom?.file.name === name}
                               isDefault={!game && entry.path === firstPath}
                               onClick={() => void selectEntry(entry, name)}
+                              // The game in play stays put until the session ends.
+                              onRemove={
+                                snap.running && snap.rom?.file.name === name
+                                  ? undefined
+                                  : () => removeEntry(entry, g)
+                              }
                             />
                           </li>
                         ))}
@@ -288,7 +375,10 @@ export function HostHome() {
               )}
             </section>
           ) : (
-            <section aria-labelledby="view-title" className="flex flex-col gap-4 pb-8">
+            <section
+              aria-labelledby="view-title"
+              className="flex flex-col gap-4 pb-8"
+            >
               <div className="flex items-center gap-3 pt-1">
                 <button
                   type="button"
@@ -303,11 +393,21 @@ export function HostHome() {
                 </h1>
               </div>
               {view === "saves" ? (
-                <SavesView game={game} romName={snap.rom?.file.name ?? null} onPlay={start} />
+                <SavesView
+                  game={game}
+                  romName={snap.rom?.file.name ?? null}
+                  onPlay={start}
+                />
               ) : (
                 <>
-                  <SettingsPanel name={snap.hostName} onName={(n) => hostSession.setHostName(n)} />
-                  <ControlsPanel reserved={HOST_RESERVED} note="Changes apply from the next game you start." />
+                  <SettingsPanel
+                    name={snap.hostName}
+                    onName={(n) => hostSession.setHostName(n)}
+                  />
+                  <ControlsPanel
+                    reserved={HOST_RESERVED}
+                    note="Changes apply from the next game you start."
+                  />
                 </>
               )}
             </section>
@@ -319,21 +419,44 @@ export function HostHome() {
           <ConsoleDeck
             game={game}
             insertKey={snap.rom?.file.name ?? ""}
-            label={snap.running ? "Playing now" : snap.resuming ? "Continues where you left off" : "Ready"}
+            label={
+              snap.running
+                ? "Playing now"
+                : snap.resuming
+                  ? "Continues where you left off"
+                  : "Ready"
+            }
             onStart={start}
             onEnd={endSession}
             // A cart that's only selected isn't a session yet.
-            canEnd={snap.running || snap.resuming || snap.players.length > 1 || snap.spectators > 0}
+            canEnd={
+              snap.running ||
+              snap.resuming ||
+              snap.players.length > 1 ||
+              snap.spectators > 0
+            }
           />
 
-          <section aria-label="Invite friends" className="flex flex-col gap-3 rounded-card bg-surface p-4 shadow-soft">
+          <section
+            aria-label="Invite friends"
+            className="flex flex-col gap-3 rounded-card bg-surface p-4 shadow-soft"
+          >
             <div className="flex items-center gap-4">
               <div className="flex-none rounded-xl bg-bg p-2">
-                <QRCodeSVG value={`${origin}/r/${snap.code ?? ""}`} size={96} fgColor="#2B2B2E" bgColor="transparent" aria-hidden />
+                <QRCodeSVG
+                  value={`${origin}/r/${snap.code ?? ""}`}
+                  size={96}
+                  fgColor="#2B2B2E"
+                  bgColor="transparent"
+                  aria-hidden
+                />
               </div>
               <div className="flex min-w-0 flex-col gap-1">
                 <span className="text-base font-extrabold">Invite friends</span>
-                <label htmlFor="room-link" className="text-[13px] font-semibold text-text-muted">
+                <label
+                  htmlFor="room-link"
+                  className="text-[13px] font-semibold text-text-muted"
+                >
                   Scan the code or send the link. No account or download needed.
                 </label>
               </div>
@@ -352,13 +475,20 @@ export function HostHome() {
                 onClick={copy}
                 className="ring-row inline-flex min-h-11 flex-none items-center gap-1.5 rounded-full bg-primary-text px-4 text-sm font-extrabold text-white"
               >
-                {copied ? <Check size={16} aria-hidden /> : <Copy size={16} aria-hidden />}
+                {copied ? (
+                  <Check size={16} aria-hidden />
+                ) : (
+                  <Copy size={16} aria-hidden />
+                )}
                 {copied ? "Copied" : "Copy"}
               </button>
             </div>
           </section>
 
-          <nav aria-label="Options" className="flex flex-col rounded-card bg-surface p-1.5 shadow-soft">
+          <nav
+            aria-label="Options"
+            className="flex flex-col rounded-card bg-surface p-1.5 shadow-soft"
+          >
             <OptionRow
               icon={Save}
               color="text-p3"
@@ -397,7 +527,11 @@ export function HostHome() {
           onChange={(e) => {
             const files = [...(e.target.files ?? [])];
             e.target.value = "";
-            void library.importFiles(files).then((n) => setNote(n ? `Added ${n} games.` : "No ROMs in that folder."));
+            void library
+              .importFiles(files)
+              .then((n) =>
+                setNote(n ? `Added ${n} games.` : "No ROMs in that folder."),
+              );
           }}
         />
       </main>
@@ -408,7 +542,12 @@ export function HostHome() {
           <>
             <Hint button="A">{game ? "Start" : "Select"}</Hint>
             <Hint button="X">Invite</Hint>
-            <Hint button="B">{view === "library" ? "End session" : "Back"}</Hint>
+            {view === "library" && games.length > 0 && (
+              <Hint button="Y">Remove</Hint>
+            )}
+            <Hint button="B">
+              {view === "library" ? "End session" : "Back"}
+            </Hint>
           </>
         }
       />
@@ -438,7 +577,11 @@ function ConsoleDeck({
       {/* The cart's lower part sits behind the console body, as if pushed into the slot. */}
       <div className="relative h-[120px]">
         {game && size && (
-          <div key={insertKey} className="absolute left-1/2 -translate-x-1/2" style={{ bottom: -size.height * 0.28 }}>
+          <div
+            key={insertKey}
+            className="absolute left-1/2 -translate-x-1/2"
+            style={{ bottom: -size.height * 0.28 }}
+          >
             <Cartridge game={game} className="cart-insert cart-shadow" />
           </div>
         )}
@@ -453,20 +596,32 @@ function ConsoleDeck({
           <span
             aria-hidden
             className={`h-2.5 w-2.5 flex-none rounded-full transition-[background-color,box-shadow] duration-300 ${
-              game ? "bg-live shadow-[0_0_10px_2px_rgba(229,72,59,0.55)]" : "bg-slot-empty"
+              game
+                ? "bg-live shadow-[0_0_10px_2px_rgba(229,72,59,0.55)]"
+                : "bg-slot-empty"
             }`}
           />
           <div className="flex min-w-0 flex-col">
             {game ? (
               <>
-                <span className="text-[11px] font-extrabold tracking-wide text-primary-text uppercase">{label}</span>
-                <span className="line-clamp-2 text-lg leading-tight font-extrabold">{game.title}</span>
-                <span className="text-[13px] font-bold text-text-muted">{game.system}</span>
+                <span className="text-[11px] font-extrabold tracking-wide text-primary-text uppercase">
+                  {label}
+                </span>
+                <span className="line-clamp-2 text-lg leading-tight font-extrabold">
+                  {game.title}
+                </span>
+                <span className="text-[13px] font-bold text-text-muted">
+                  {game.system}
+                </span>
               </>
             ) : (
               <>
-                <span className="text-lg leading-tight font-extrabold">No game inserted</span>
-                <span className="text-[13px] font-bold text-text-muted">Pick a cartridge from the shelf.</span>
+                <span className="text-lg leading-tight font-extrabold">
+                  No game inserted
+                </span>
+                <span className="text-[13px] font-bold text-text-muted">
+                  Pick a cartridge from the shelf.
+                </span>
               </>
             )}
           </div>
@@ -502,40 +657,70 @@ function ShelfCart({
   selected,
   isDefault,
   onClick,
+  onRemove,
 }: {
   game: Game;
   selected: boolean;
   isDefault: boolean;
   onClick: () => void;
+  onRemove?: () => void;
 }) {
   // Small carts still get room for a two-line title.
   const width = Math.max(cartSize(game.systemId).width, 116);
+  // Y on a controller removes the focused cart; Delete does on a keyboard.
+  const [focused, setFocused] = useState(false);
+  useNavAction("y", () => onRemove?.(), focused && !!onRemove);
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-label={`${game.title}, ${game.system}${selected ? ", in the console. Start" : ""}`}
-      data-nav-default={isDefault ? "" : undefined}
-      className="ring-tile group flex flex-col items-center rounded-tile bg-transparent p-0"
-      style={{ width }}
-    >
-      <Cartridge
-        game={game}
-        ghost={selected}
-        className={
-          selected
-            ? ""
-            : "cart-shadow transition-[translate] duration-200 ease-out group-hover:-translate-y-1.5 group-focus:-translate-y-1.5"
-        }
-      />
-      <span
-        className={`mt-2.5 line-clamp-2 h-[2.5em] text-center text-[13px] leading-[1.25] font-bold ${
-          selected ? "text-text-muted" : "text-text"
-        }`}
+    <div className="group/cart relative flex">
+      <button
+        type="button"
+        onClick={onClick}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+        onKeyDown={(e) => {
+          if ((e.key === "Delete" || e.key === "Backspace") && onRemove) {
+            e.preventDefault();
+            onRemove();
+          }
+        }}
+        aria-label={`${game.title}, ${game.system}${selected ? ", in the console. Start" : ""}`}
+        aria-keyshortcuts={onRemove ? "Delete" : undefined}
+        data-nav-default={isDefault ? "" : undefined}
+        className="ring-tile group flex flex-col items-center rounded-tile bg-transparent p-0"
+        style={{ width }}
       >
-        {game.title}
-      </span>
-    </button>
+        <Cartridge
+          game={game}
+          ghost={selected}
+          className={
+            selected
+              ? ""
+              : "cart-shadow transition-[translate] duration-200 ease-out group-hover:-translate-y-1.5 group-focus:-translate-y-1.5"
+          }
+        />
+        <span
+          className={`mt-2.5 line-clamp-2 h-[2.5em] text-center text-[13px] leading-[1.25] font-bold ${
+            selected ? "text-text-muted" : "text-text"
+          }`}
+        >
+          {game.title}
+        </span>
+      </button>
+      {onRemove && (
+        <button
+          type="button"
+          onClick={onRemove}
+          aria-label={`Remove ${game.title} from the library`}
+          title="Remove from library"
+          // For the pointer; controllers and keyboards use Y and Delete on the cart.
+          data-nav="skip"
+          tabIndex={-1}
+          className="absolute -top-2.5 -right-2.5 z-10 flex h-7 w-7 scale-90 items-center justify-center rounded-full bg-surface text-text-muted opacity-0 shadow-soft transition-[opacity,scale,background-color,color] duration-150 ease-out group-hover/cart:scale-100 group-hover/cart:opacity-100 hover:bg-danger hover:text-white"
+        >
+          <X size={15} strokeWidth={2.5} aria-hidden />
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -551,10 +736,13 @@ function EmptyLibrary({
   return (
     <div className="flex flex-col items-start gap-4 rounded-card border-2 border-dashed border-line px-6 py-10">
       <div className="flex flex-col gap-1">
-        <span className="text-lg font-extrabold">{folderName ? `No games in ${folderName}` : "Your games live here"}</span>
+        <span className="text-lg font-extrabold">
+          {folderName ? `No games in ${folderName}` : "Your games live here"}
+        </span>
         <span className="max-w-[46ch] text-sm font-semibold text-text-muted">
-          Open the folder where you keep your ROMs. Gameroom reads it in your browser and never uploads it. SNES, NES,
-          Genesis, Game Boy and GBA files work.
+          Open the folder where you keep your ROMs. Gameroom reads it in your
+          browser and never uploads it. SNES, NES, Genesis, Game Boy and GBA
+          files work.
         </span>
       </div>
       <button
@@ -570,7 +758,15 @@ function EmptyLibrary({
   );
 }
 
-function ToolButton({ icon: Icon, children, onClick }: { icon: LucideIcon; children: React.ReactNode; onClick: () => void }) {
+function ToolButton({
+  icon: Icon,
+  children,
+  onClick,
+}: {
+  icon: LucideIcon;
+  children: React.ReactNode;
+  onClick: () => void;
+}) {
   return (
     <button
       type="button"
@@ -583,7 +779,15 @@ function ToolButton({ icon: Icon, children, onClick }: { icon: LucideIcon; child
   );
 }
 
-function Chip({ selected, onClick, children }: { selected: boolean; onClick: () => void; children: React.ReactNode }) {
+function Chip({
+  selected,
+  onClick,
+  children,
+}: {
+  selected: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
   return (
     <button
       type="button"
@@ -591,7 +795,9 @@ function Chip({ selected, onClick, children }: { selected: boolean; onClick: () 
       aria-selected={selected}
       onClick={onClick}
       className={`ring-row min-h-9 rounded-full px-4 text-[13px] font-extrabold ${
-        selected ? "bg-text text-white" : "bg-transparent text-text-muted shadow-[inset_0_0_0_2px_var(--line)]"
+        selected
+          ? "bg-text text-white"
+          : "bg-transparent text-text-muted shadow-[inset_0_0_0_2px_var(--line)]"
       }`}
     >
       {children}
@@ -619,30 +825,56 @@ function OptionRow({
       aria-current={selected ? "page" : undefined}
       className={`ring-row flex min-h-12 items-center gap-3 rounded-xl px-3 text-left ${selected ? "bg-bg" : "bg-transparent"}`}
     >
-      <span className={`flex h-9 w-9 flex-none items-center justify-center rounded-full bg-bg ${color}`}>
+      <span
+        className={`flex h-9 w-9 flex-none items-center justify-center rounded-full bg-bg ${color}`}
+      >
         <Icon size={19} aria-hidden />
       </span>
-      <span className="min-w-0 flex-1 text-[15px] font-extrabold">{children}</span>
-      <ChevronRight size={18} className="flex-none text-slot-empty" aria-hidden />
+      <span className="min-w-0 flex-1 text-[15px] font-extrabold">
+        {children}
+      </span>
+      <ChevronRight
+        size={18}
+        className="flex-none text-slot-empty"
+        aria-hidden
+      />
     </button>
   );
 }
 
 /** The loaded game's save slots. Picking one starts the game from it. */
-function SavesView({ game, romName, onPlay }: { game: Game | null; romName: string | null; onPlay: () => void }) {
-  const [slots, setSlots] = useState<{ rom: string; list: (SaveSlot | null)[] } | null>(null);
+function SavesView({
+  game,
+  romName,
+  onPlay,
+}: {
+  game: Game | null;
+  romName: string | null;
+  onPlay: () => void;
+}) {
+  const [slots, setSlots] = useState<{
+    rom: string;
+    list: (SaveSlot | null)[];
+  } | null>(null);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     if (!romName) return;
     let live = true;
-    void hostSession.listSlots().then((list) => live && setSlots({ rom: romName, list }));
+    void hostSession
+      .listSlots()
+      .then((list) => live && setSlots({ rom: romName, list }));
     return () => {
       live = false;
     };
   }, [romName]);
 
-  if (!game) return <p className="text-sm font-semibold text-text-muted">Pick a game from your library to see its saves.</p>;
+  if (!game)
+    return (
+      <p className="text-sm font-semibold text-text-muted">
+        Pick a game from your library to see its saves.
+      </p>
+    );
   const list = slots?.rom === romName ? slots.list : null;
 
   const play = async (slot: number) => {
@@ -659,8 +891,8 @@ function SavesView({ game, romName, onPlay }: { game: Game | null; romName: stri
   return (
     <div className="flex flex-col gap-4">
       <p className="text-sm font-semibold text-text-muted">
-        Saves for {game.title}. Save during play from the menu (Esc, Home, or Select+Start), then pick a slot here to play
-        from it.
+        Saves for {game.title}. Save during play from the menu (Esc, Home, or
+        Select+Start), then pick a slot here to play from it.
       </p>
       <ul className="-mx-2 grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-5 p-2">
         {(list ?? [null, null, null, null]).map((save, i) => (
@@ -673,7 +905,10 @@ function SavesView({ game, romName, onPlay }: { game: Game | null; romName: stri
               className="ring-tile flex w-full flex-col gap-2 rounded-tile bg-transparent p-0 text-left disabled:cursor-default"
             >
               <span className="relative flex aspect-[4/3] w-full">
-                <Thumb save={save} className="h-full w-full rounded-tile shadow-soft" />
+                <Thumb
+                  save={save}
+                  className="h-full w-full rounded-tile shadow-soft"
+                />
                 {!save && (
                   <span className="absolute inset-0 flex items-center justify-center text-sm font-extrabold text-white/50">
                     Empty
@@ -682,7 +917,9 @@ function SavesView({ game, romName, onPlay }: { game: Game | null; romName: stri
               </span>
               <span className="flex flex-col px-0.5">
                 <span className="text-sm font-extrabold">Slot {i + 1}</span>
-                <span className="text-xs font-bold text-text-muted">{save ? ago(save.savedAt) : "Nothing saved yet"}</span>
+                <span className="text-xs font-bold text-text-muted">
+                  {save ? ago(save.savedAt) : "Nothing saved yet"}
+                </span>
               </span>
             </button>
           </li>

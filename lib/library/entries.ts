@@ -14,7 +14,7 @@ export function gameTitle(fileName: string) {
   return bare.replace(/^([^,]+), (The|A|An)\b/, "$2 $1");
 }
 
-const fileName = (path: string) => path.split("/").pop()!;
+export const fileName = (path: string) => path.split("/").pop()!;
 
 const DISC_INDEX = /\.(cue|ccd|toc|m3u|chd|iso)$/i;
 const dirOf = (path: string) => path.slice(0, path.lastIndexOf("/") + 1);
