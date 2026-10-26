@@ -1,0 +1,122 @@
+@import "tailwindcss";
+
+/* Console Home tokens. Raw values live here as CSS variables. */
+:root {
+  --bg: #ededef;
+  --surface: #ffffff;
+  --panel: #f4f4f6;
+  --game-bg: #101012;
+  --text: #2b2b2e;
+  --text-muted: #5c5c63;
+  --line: #cfcfd4;
+  --line-soft: #dadadf;
+  --slot-empty: #a9a9b0;
+  --focus: #2d7ff0;
+  --primary-text: #1a5fc0;
+  --ok: #2db36b;
+  --danger: #c0322a;
+  --p1: #e5603f;
+  --p2: #1f9e89;
+  --p3: #7a5af0;
+  --p4: #e0a21b;
+  /* Latency text colors from the in-game menu mockup. */
+  --lat-good: #1c7a3f;
+  --lat-fair: #9a5b00;
+  --live: #e5483b;
+}
+
+/* Exposed to Tailwind as bg-surface, text-text-muted, rounded-tile, etc. */
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-panel: var(--panel);
+  --color-game-bg: var(--game-bg);
+  --color-text: var(--text);
+  --color-text-muted: var(--text-muted);
+  --color-line: var(--line);
+  --color-line-soft: var(--line-soft);
+  --color-slot-empty: var(--slot-empty);
+  --color-focus: var(--focus);
+  --color-primary-text: var(--primary-text);
+  --color-ok: var(--ok);
+  --color-danger: var(--danger);
+  --color-p1: var(--p1);
+  --color-p2: var(--p2);
+  --color-p3: var(--p3);
+  --color-p4: var(--p4);
+  --color-lat-good: var(--lat-good);
+  --color-lat-fair: var(--lat-fair);
+  --color-live: var(--live);
+
+  --font-sans: var(--font-nunito), system-ui, sans-serif;
+
+  --radius-tile: 14px;
+  --radius-card: 18px;
+  --radius-menu: 22px;
+
+  --shadow-soft: 0 2px 6px rgba(0, 0, 0, 0.08);
+  --shadow-lift: 0 10px 24px rgba(0, 0, 0, 0.18);
+  --shadow-stream: 0 10px 28px rgba(0, 0, 0, 0.16);
+}
+
+html,
+body {
+  background: var(--bg);
+  color: var(--text);
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+}
+
+/*
+ * Selection ring. :focus-visible covers keyboard focus. data-input="nav" is
+ * set by the focus manager for arrow keys and gamepads, so programmatic focus
+ * from a controller looks identical. Pointer focus shows no ring.
+ */
+:focus-visible {
+  outline: none;
+}
+.ring-tile:focus-visible,
+[data-input="nav"] .ring-tile:focus {
+  outline: 5px solid var(--focus);
+  outline-offset: 5px;
+}
+.ring-row:focus-visible,
+[data-input="nav"] .ring-row:focus {
+  outline: 4px solid var(--focus);
+  outline-offset: 2px;
+}
+
+@keyframes slot-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(45, 127, 240, 0.45);
+  }
+  50% {
+    box-shadow: 0 0 0 10px rgba(45, 127, 240, 0);
+  }
+}
+.slot-pulse {
+  animation: slot-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes menu-in {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+.menu-in {
+  animation: menu-in 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .slot-pulse,
+  .menu-in {
+    animation: none;
+  }
+}

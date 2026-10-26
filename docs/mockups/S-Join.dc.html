@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Guest join, console style</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;600;700;800&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#EDEDEF}
+a{color:#1A5FC0}a:hover{color:#124590}
+button{font-family:inherit;cursor:pointer}
+@keyframes ring{0%,100%{box-shadow:0 0 0 0 rgba(45,127,240,0.45)}50%{box-shadow:0 0 0 10px rgba(45,127,240,0)}}
+.ring{animation:ring 1.6s ease-in-out infinite}
+</style>
+</helmet>
+<div style="min-height: 800px; background: #EDEDEF; color: #2B2B2E; font-family: 'Nunito', system-ui, sans-serif; font-size: 15px; box-sizing: border-box; display: flex; flex-direction: column">
+  <main style="flex: 1; display: flex; flex-direction: column; align-items: center; gap: 30px; padding: 44px 16px 24px">
+    <div style="display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center">
+      <span style="font-weight: 700; font-size: 15px; color: #5C5C63">Garrett invited you to play</span>
+      <h1 style="margin: 0; font-size: 34px; font-weight: 800">Mario Kart 64</h1>
+    </div>
+
+    <div style="width: 100%; max-width: 520px; aspect-ratio: 4 / 3; border-radius: 18px; background: #2B2B2E; color: #C9C9CF; font-size: 13px; display: flex; align-items: center; justify-content: center; position: relative; box-shadow: 0 10px 28px rgba(0,0,0,0.16)">
+      [Live stream preview]
+      <span style="position: absolute; top: 14px; left: 14px; display: inline-flex; align-items: center; gap: 6px; background: rgba(255,255,255,0.92); color: #2B2B2E; border-radius: 999px; padding: 5px 12px; font-size: 12px; font-weight: 800"><span style="width: 8px; height: 8px; border-radius: 50%; background: #E5483B"></span>Live</span>
+    </div>
+
+    <div style="display: flex; flex-wrap: wrap; justify-content: center; gap: 34px">
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 10px; width: 96px">
+        <span style="width: 84px; height: 84px; border-radius: 50%; background: #E5603F; color: #FFFFFF; font-weight: 800; font-size: 30px; display: flex; align-items: center; justify-content: center">G</span>
+        <span style="font-weight: 800; font-size: 14px">Garrett</span>
+        <span style="font-size: 12px; font-weight: 600; color: #5C5C63; margin-top: -8px">Player 1</span>
+      </div>
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 10px; width: 96px">
+        <span style="width: 84px; height: 84px; border-radius: 50%; background: #1F9E89; color: #FFFFFF; font-weight: 800; font-size: 30px; display: flex; align-items: center; justify-content: center">S</span>
+        <span style="font-weight: 800; font-size: 14px">Sam</span>
+        <span style="font-size: 12px; font-weight: 600; color: #5C5C63; margin-top: -8px">Player 2</span>
+      </div>
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 10px; width: 120px">
+        <span class="ring" style="width: 84px; height: 84px; border-radius: 50%; background: #FFFFFF; border: 4px solid #2D7FF0; color: #1A5FC0; display: flex; align-items: center; justify-content: center; box-sizing: border-box"><svg width="34" height="34" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8h12a4 4 0 0 1 4 4v1a4 4 0 0 1-7.2 2.4H9.2A4 4 0 0 1 2 13v-1a4 4 0 0 1 4-4z"/><path d="M7 11v3M5.5 12.5h3"/></svg></span>
+        <span style="font-weight: 800; font-size: 14px; color: #1A5FC0">You</span>
+        <span style="font-size: 12px; font-weight: 700; color: #1A5FC0; margin-top: -8px; text-align: center">Press any button</span>
+      </div>
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 10px; width: 96px">
+        <span style="width: 84px; height: 84px; border-radius: 50%; border: 2px dashed #A9A9B0; box-sizing: border-box"></span>
+        <span style="font-weight: 700; font-size: 14px; color: #5C5C63">Open</span>
+      </div>
+    </div>
+
+    <div style="display: flex; gap: 12px; flex-wrap: wrap; justify-content: center">
+      <button style="background: #FFFFFF; color: #2B2B2E; border: none; border-radius: 999px; padding: 0 22px; font-weight: 800; font-size: 14px; min-height: 48px; box-shadow: 0 2px 6px rgba(0,0,0,0.08)">Touch controls</button>
+      <button style="background: #FFFFFF; color: #2B2B2E; border: none; border-radius: 999px; padding: 0 22px; font-weight: 800; font-size: 14px; min-height: 48px; box-shadow: 0 2px 6px rgba(0,0,0,0.08)">Keyboard</button>
+      <button style="background: transparent; color: #1A5FC0; border: none; border-radius: 999px; padding: 0 18px; font-weight: 800; font-size: 14px; min-height: 48px">Just watch</button>
+    </div>
+  </main>
+
+  <footer style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin: 0 40px; padding: 16px 0 22px; border-top: 1px solid #CFCFD4">
+    <span style="display: inline-flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 700; color: #5C5C63"><span style="width: 9px; height: 9px; border-radius: 50%; background: #2DB36B"></span>Connected <span style="color: #2B2B2E">31 ms</span></span>
+    <div style="display: flex; gap: 22px; font-size: 14px; font-weight: 700">
+      <span style="display: inline-flex; align-items: center; gap: 8px"><span style="width: 26px; height: 26px; border-radius: 50%; background: #2B2B2E; color: #FFFFFF; font-size: 12px; font-weight: 800; display: flex; align-items: center; justify-content: center">A</span>Join</span>
+      <span style="display: inline-flex; align-items: center; gap: 8px"><span style="width: 26px; height: 26px; border-radius: 50%; background: #2B2B2E; color: #FFFFFF; font-size: 12px; font-weight: 800; display: flex; align-items: center; justify-content: center">B</span>Just watch</span>
+    </div>
+  </footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

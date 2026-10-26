@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>In game menu, console style</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;600;700;800&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#101012}
+a{color:#1A5FC0}a:hover{color:#124590}
+button{font-family:inherit;cursor:pointer}
+</style>
+</helmet>
+<div style="min-height: 800px; background: #101012; color: #2B2B2E; font-family: 'Nunito', system-ui, sans-serif; font-size: 15px; box-sizing: border-box; display: flex; flex-wrap: wrap">
+  <div style="flex: 999 1 560px; min-width: 0; position: relative; display: flex; align-items: center; justify-content: center; padding: 24px">
+    <div style="height: 640px; max-width: 100%; aspect-ratio: 4 / 3; border-radius: 8px; background: #1E1E22; color: #77777F; font-size: 14px; display: flex; align-items: center; justify-content: center; opacity: 0.55">[Game stream, paused behind the menu]</div>
+    <span style="position: absolute; top: 24px; left: 24px; display: inline-flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.92); border-radius: 999px; padding: 7px 14px; font-size: 13px; font-weight: 800"><span style="width: 8px; height: 8px; border-radius: 50%; background: #2DB36B"></span>46 ms <span style="color: #5C5C63; font-weight: 700">60 fps</span></span>
+  </div>
+
+  <aside aria-label="Game menu" style="flex: 1 1 360px; max-width: 420px; background: #F4F4F6; border-radius: 22px 0 0 22px; display: flex; flex-direction: column; box-sizing: border-box">
+    <div style="padding: 28px 28px 18px; display: flex; flex-direction: column; gap: 4px">
+      <span style="font-size: 13px; font-weight: 700; color: #5C5C63">Nintendo 64</span>
+      <h1 style="margin: 0; font-size: 24px; font-weight: 800">Mario Kart 64</h1>
+    </div>
+
+    <div style="padding: 0 20px; display: flex; flex-direction: column; gap: 4px">
+      <div style="display: flex; align-items: center; gap: 12px; padding: 8px">
+        <span style="width: 36px; height: 36px; border-radius: 50%; background: #E5603F; color: #fff; font-weight: 800; font-size: 14px; display: flex; align-items: center; justify-content: center">G</span>
+        <span style="flex: 1; font-weight: 700">Garrett</span>
+        <span style="font-size: 13px; font-weight: 700; color: #5C5C63">Host</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 12px; padding: 8px">
+        <span style="width: 36px; height: 36px; border-radius: 50%; background: #1F9E89; color: #fff; font-weight: 800; font-size: 14px; display: flex; align-items: center; justify-content: center">S</span>
+        <span style="flex: 1; font-weight: 700">Sam</span>
+        <span style="font-size: 13px; font-weight: 700; color: #1C7A3F">28 ms</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 12px; padding: 8px">
+        <span style="width: 36px; height: 36px; border-radius: 50%; background: #7A5AF0; color: #fff; font-weight: 800; font-size: 14px; display: flex; align-items: center; justify-content: center">J</span>
+        <span style="flex: 1; font-weight: 700">Jo</span>
+        <span style="font-size: 13px; font-weight: 700; color: #9A5B00">52 ms</span>
+      </div>
+    </div>
+
+    <nav style="margin: 16px 20px 0; padding-top: 14px; border-top: 1px solid #DADADF; display: flex; flex-direction: column; gap: 6px">
+      <button style="text-align: left; background: #FFFFFF; color: #1A5FC0; border: none; border-radius: 12px; padding: 0 16px; font-weight: 800; font-size: 16px; min-height: 52px; outline: 4px solid #2D7FF0; outline-offset: 2px">Resume</button>
+      <button style="text-align: left; background: transparent; color: #2B2B2E; border: none; border-radius: 12px; padding: 0 16px; font-weight: 700; font-size: 16px; min-height: 52px">Save state</button>
+      <button style="text-align: left; background: transparent; color: #2B2B2E; border: none; border-radius: 12px; padding: 0 16px; font-weight: 700; font-size: 16px; min-height: 52px">Load state</button>
+      <button style="text-align: left; background: transparent; color: #2B2B2E; border: none; border-radius: 12px; padding: 0 16px; font-weight: 700; font-size: 16px; min-height: 52px">Invite friends</button>
+      <button style="text-align: left; background: transparent; color: #C0322A; border: none; border-radius: 12px; padding: 0 16px; font-weight: 800; font-size: 16px; min-height: 52px">End session</button>
+    </nav>
+
+    <div style="margin-top: auto; padding: 18px 28px 22px; display: flex; justify-content: flex-end; gap: 22px; font-size: 14px; font-weight: 700">
+      <span style="display: inline-flex; align-items: center; gap: 8px"><span style="width: 26px; height: 26px; border-radius: 50%; background: #2B2B2E; color: #FFFFFF; font-size: 12px; font-weight: 800; display: flex; align-items: center; justify-content: center">B</span>Back</span>
+      <span style="display: inline-flex; align-items: center; gap: 8px"><span style="width: 26px; height: 26px; border-radius: 50%; background: #2B2B2E; color: #FFFFFF; font-size: 12px; font-weight: 800; display: flex; align-items: center; justify-content: center">A</span>OK</span>
+    </div>
+  </aside>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

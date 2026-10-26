@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Host home, console style</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;600;700;800&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#EDEDEF}
+a{color:#1A5FC0}a:hover{color:#124590}
+button{font-family:inherit;cursor:pointer}
+</style>
+</helmet>
+<div style="min-height: 800px; background: #EDEDEF; color: #2B2B2E; font-family: 'Nunito', system-ui, sans-serif; font-size: 15px; box-sizing: border-box; display: flex; flex-direction: column">
+  <header style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; padding: 22px 40px">
+    <div style="display: flex; align-items: center; gap: 10px">
+      <span title="Garrett, host" style="width: 44px; height: 44px; border-radius: 50%; background: #E5603F; color: #FFFFFF; font-weight: 800; font-size: 16px; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 0 3px #FFFFFF">G</span>
+      <span title="Sam" style="width: 44px; height: 44px; border-radius: 50%; background: #1F9E89; color: #FFFFFF; font-weight: 800; font-size: 16px; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 0 3px #FFFFFF">S</span>
+      <span style="width: 44px; height: 44px; border-radius: 50%; border: 2px dashed #A9A9B0; box-sizing: border-box"></span>
+      <span style="width: 44px; height: 44px; border-radius: 50%; border: 2px dashed #A9A9B0; box-sizing: border-box"></span>
+    </div>
+    <div style="display: flex; align-items: center; gap: 10px">
+      <span style="display: inline-flex; align-items: center; gap: 8px; background: #FFFFFF; border-radius: 999px; padding: 8px 14px; font-weight: 700; font-size: 14px"><span style="width: 9px; height: 9px; border-radius: 50%; background: #2DB36B"></span>Hosting</span>
+      <span style="background: #FFFFFF; border-radius: 999px; padding: 8px 14px; font-weight: 700; font-size: 14px; color: #5C5C63">Room K7QX</span>
+    </div>
+  </header>
+
+  <main style="flex: 1; display: flex; flex-direction: column; gap: 34px; padding: 18px 40px 30px; box-sizing: border-box; max-width: 1360px; width: 100%; margin: 0 auto">
+    <div style="display: flex; flex-direction: column; gap: 14px">
+      <div style="display: flex; align-items: baseline; gap: 14px">
+        <h1 style="margin: 0; font-size: 26px; font-weight: 800; color: #1A5FC0">Mario Kart 64</h1>
+        <span style="font-weight: 700; font-size: 14px; color: #5C5C63">Nintendo 64</span>
+      </div>
+      <div style="display: flex; gap: 22px; overflow-x: auto; padding: 8px 8px 12px">
+        <button style="flex: none; width: 250px; height: 250px; border-radius: 14px; border: none; padding: 0; background: #2B2B2E; color: #C9C9CF; font-size: 13px; outline: 5px solid #2D7FF0; outline-offset: 5px; box-shadow: 0 10px 24px rgba(0,0,0,0.18)">[Box art]</button>
+        <button style="flex: none; width: 210px; height: 210px; align-self: flex-end; border-radius: 14px; border: none; padding: 0; background: #FFFFFF; color: #5C5C63; font-size: 13px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px"><span>[Box art]</span><span style="font-weight: 700; color: #2B2B2E">Super Bomberman 2</span></button>
+        <button style="flex: none; width: 210px; height: 210px; align-self: flex-end; border-radius: 14px; border: none; padding: 0; background: #FFFFFF; color: #5C5C63; font-size: 13px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px"><span>[Box art]</span><span style="font-weight: 700; color: #2B2B2E">Crash Team Racing</span></button>
+        <button style="flex: none; width: 210px; height: 210px; align-self: flex-end; border-radius: 14px; border: 2px dashed #A9A9B0; padding: 0; background: transparent; color: #2B2B2E; font-size: 15px; font-weight: 700; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; box-sizing: border-box"><svg width="36" height="36" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Open ROM file</button>
+      </div>
+    </div>
+
+    <div style="display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 28px">
+      <div style="display: flex; flex-wrap: wrap; gap: 22px">
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 8px">
+          <button aria-label="Invite friends" style="width: 64px; height: 64px; border-radius: 50%; border: none; background: #FFFFFF; color: #1A5FC0; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(0,0,0,0.08)"><svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M19 8v6M16 11h6"/></svg></button>
+          <span style="font-size: 13px; font-weight: 700">Invite</span>
+        </div>
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 8px">
+          <button aria-label="Players" style="width: 64px; height: 64px; border-radius: 50%; border: none; background: #FFFFFF; color: #1F9E89; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(0,0,0,0.08)"><svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8h12a4 4 0 0 1 4 4v1a4 4 0 0 1-7.2 2.4H9.2A4 4 0 0 1 2 13v-1a4 4 0 0 1 4-4z"/><path d="M7 11v3M5.5 12.5h3"/></svg></button>
+          <span style="font-size: 13px; font-weight: 700">Players</span>
+        </div>
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 8px">
+          <button aria-label="Save states" style="width: 64px; height: 64px; border-radius: 50%; border: none; background: #FFFFFF; color: #7A5AF0; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(0,0,0,0.08)"><svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h11l3 3v13H5z"/><path d="M8 4v5h7V4M8 20v-6h8v6"/></svg></button>
+          <span style="font-size: 13px; font-weight: 700">Saves</span>
+        </div>
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 8px">
+          <button aria-label="Settings" style="width: 64px; height: 64px; border-radius: 50%; border: none; background: #FFFFFF; color: #5C5C63; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(0,0,0,0.08)"><svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/></svg></button>
+          <span style="font-size: 13px; font-weight: 700">Settings</span>
+        </div>
+      </div>
+
+      <div style="flex: 0 1 460px; background: #FFFFFF; border-radius: 18px; padding: 16px; display: flex; gap: 16px; align-items: center; box-shadow: 0 2px 6px rgba(0,0,0,0.06)">
+        <svg width="88" height="88" viewBox="0 0 21 21" aria-hidden="true" shape-rendering="crispEdges" style="flex: none"><rect width="21" height="21" fill="#fff"/><g fill="#2B2B2E"><rect x="0" y="0" width="7" height="7"/><rect x="14" y="0" width="7" height="7"/><rect x="0" y="14" width="7" height="7"/></g><g fill="#fff"><rect x="1" y="1" width="5" height="5"/><rect x="15" y="1" width="5" height="5"/><rect x="1" y="15" width="5" height="5"/></g><g fill="#2B2B2E"><rect x="2" y="2" width="3" height="3"/><rect x="16" y="2" width="3" height="3"/><rect x="2" y="16" width="3" height="3"/><rect x="8" y="1" width="1" height="2"/><rect x="10" y="0" width="2" height="1"/><rect x="9" y="4" width="3" height="1"/><rect x="8" y="8" width="2" height="2"/><rect x="11" y="9" width="3" height="1"/><rect x="15" y="8" width="2" height="3"/><rect x="18" y="9" width="3" height="1"/><rect x="1" y="9" width="3" height="1"/><rect x="4" y="11" width="2" height="2"/><rect x="9" y="12" width="2" height="3"/><rect x="13" y="13" width="3" height="2"/><rect x="17" y="15" width="2" height="2"/><rect x="15" y="18" width="4" height="1"/><rect x="9" y="17" width="2" height="3"/><rect x="12" y="19" width="2" height="2"/><rect x="19" y="12" width="2" height="2"/></g></svg>
+        <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px">
+          <span style="font-weight: 800; font-size: 16px">Invite friends</span>
+          <label for="roomlinks" style="font-size: 13px; color: #5C5C63; font-weight: 600">Scan the code or share the link</label>
+          <div style="display: flex; gap: 8px">
+            <input id="roomlinks" value="play.holaday.dev/r/K7QX" readonly style="flex: 1; min-width: 0; background: #EDEDEF; border: none; border-radius: 999px; padding: 0 14px; font-family: inherit; font-weight: 700; font-size: 13px; color: #2B2B2E; min-height: 44px">
+            <button style="background: #1A5FC0; color: #FFFFFF; border: none; border-radius: 999px; padding: 0 18px; font-weight: 800; font-size: 14px; min-height: 44px">Copy</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin: 0 40px; padding: 16px 0 22px; border-top: 1px solid #CFCFD4">
+    <span style="font-size: 14px; font-weight: 600; color: #5C5C63">Paused and ready. Start when everyone is in.</span>
+    <div style="display: flex; gap: 22px; font-size: 14px; font-weight: 700">
+      <span style="display: inline-flex; align-items: center; gap: 8px"><span style="width: 26px; height: 26px; border-radius: 50%; background: #2B2B2E; color: #FFFFFF; font-size: 12px; font-weight: 800; display: flex; align-items: center; justify-content: center">A</span>Start</span>
+      <span style="display: inline-flex; align-items: center; gap: 8px"><span style="width: 26px; height: 26px; border-radius: 50%; background: #2B2B2E; color: #FFFFFF; font-size: 12px; font-weight: 800; display: flex; align-items: center; justify-content: center">X</span>Invite</span>
+      <span style="display: inline-flex; align-items: center; gap: 8px"><span style="width: 26px; height: 26px; border-radius: 50%; background: #2B2B2E; color: #FFFFFF; font-size: 12px; font-weight: 800; display: flex; align-items: center; justify-content: center">B</span>End session</span>
+    </div>
+  </footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>
