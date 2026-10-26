@@ -17,12 +17,13 @@ import {
   Settings,
   type LucideIcon,
 } from "lucide-react";
+import { Cartridge, cartSize } from "@/components/cartridge";
 import { ControlsPanel } from "@/components/controls-panel";
 import { ago, Thumb } from "@/components/save-slots";
 import { PlayersPanel, SettingsPanel } from "@/components/players-panel";
 import { Avatar, Dot, EmptySlot, Footer, Hint, Pill, type PlayerSlot } from "@/components/ui";
 import { HOST_RESERVED } from "@/lib/emulator/host-input";
-import { ROM_ACCEPT, type SystemId } from "@/lib/emulator/systems";
+import { ROM_ACCEPT, SYSTEMS, type SystemId } from "@/lib/emulator/systems";
 import type { SaveSlot } from "@/lib/host/saves-store";
 import { hostSession } from "@/lib/host/session";
 import { gameForFile } from "@/lib/library/games";
@@ -65,12 +66,16 @@ export function HostHome() {
         .sort((a, b) => a.game.title.localeCompare(b.game.title)),
     [lib.entries],
   );
-  const systems = useMemo(() => {
-    const seen = new Map<SystemId, string>();
-    for (const g of games) seen.set(g.game.systemId as SystemId, g.game.system);
-    return [...seen];
-  }, [games]);
-  const shown = filter === "all" || !systems.some(([id]) => id === filter) ? games : games.filter((g) => g.game.systemId === filter);
+  // One shelf per system you have games for, in the systems table's order.
+  const shelves = useMemo(
+    () =>
+      Object.values(SYSTEMS)
+        .map((sys) => ({ sys, games: games.filter((g) => g.game.systemId === sys.id) }))
+        .filter((shelf) => shelf.games.length),
+    [games],
+  );
+  const shown = shelves.some((sh) => sh.sys.id === filter) ? shelves.filter((sh) => sh.sys.id === filter) : shelves;
+  const firstPath = shown[0]?.games[0]?.entry.path;
 
   useEffect(() => {
     void hostSession.restore();
@@ -211,33 +216,42 @@ export function HostHome() {
                 </div>
               </div>
 
-              {systems.length > 1 && (
+              {shelves.length > 1 && (
                 <div role="tablist" aria-label="System" className="flex flex-wrap gap-2">
                   <Chip selected={filter === "all"} onClick={() => setFilter("all")}>
                     All
                   </Chip>
-                  {systems.map(([id, name]) => (
-                    <Chip key={id} selected={filter === id} onClick={() => setFilter(id)}>
-                      {name}
+                  {shelves.map(({ sys }) => (
+                    <Chip key={sys.id} selected={filter === sys.id} onClick={() => setFilter(sys.id)}>
+                      {sys.name}
                     </Chip>
                   ))}
                 </div>
               )}
 
               {games.length ? (
-                // Padding leaves room for the focus ring inside the scroll area.
-                <ul className="-mx-2 grid grid-cols-[repeat(auto-fill,minmax(164px,1fr))] gap-x-5 gap-y-6 p-2">
-                  {shown.map(({ entry, name, game: g }, i) => (
-                    <li key={entry.path}>
-                      <GameTile
-                        game={g}
-                        current={snap.rom?.file.name === name}
-                        isDefault={!game && i === 0}
-                        onClick={() => void selectEntry(entry, name)}
-                      />
-                    </li>
+                <div className="flex flex-col gap-9">
+                  {shown.map(({ sys, games: list }) => (
+                    <section key={sys.id} aria-label={`${sys.name} games`} className="flex flex-col gap-2">
+                      <h2 className="text-[13px] font-extrabold tracking-wide text-text-muted uppercase">
+                        {sys.name} <span className="font-bold">{list.length}</span>
+                      </h2>
+                      {/* Side padding leaves room for the focus ring and the shelf ends. */}
+                      <ul className="flex flex-wrap items-end gap-x-6 gap-y-7 px-3 pt-4">
+                        {list.map(({ entry, name, game: g }) => (
+                          <li key={entry.path} className="flex">
+                            <ShelfCart
+                              game={g}
+                              selected={snap.rom?.file.name === name}
+                              isDefault={!game && entry.path === firstPath}
+                              onClick={() => void selectEntry(entry, name)}
+                            />
+                          </li>
+                        ))}
+                      </ul>
+                    </section>
                   ))}
-                </ul>
+                </div>
               ) : (
                 <EmptyLibrary
                   folderName={lib.needsPermission ? null : lib.folderName}
@@ -283,9 +297,10 @@ export function HostHome() {
 
         {/* Right: what's loaded, the invite, and options. */}
         <aside className="flex flex-col gap-4 pb-8 scrollbar lg:min-h-0 lg:overflow-y-auto">
-          <NowPlaying
+          <ConsoleDeck
             game={game}
-            label={snap.running ? "Playing now" : snap.resuming ? "Continues where you left off" : "Ready to start"}
+            insertKey={snap.rom?.file.name ?? ""}
+            label={snap.running ? "Playing now" : snap.resuming ? "Continues where you left off" : "Ready"}
             onStart={start}
           />
 
@@ -387,116 +402,119 @@ export function HostHome() {
   );
 }
 
-function NowPlaying({ game, label, onStart }: { game: Game | null; label: string; onStart: () => void }) {
-  if (!game)
-    return (
-      <section aria-label="Now playing" className="flex flex-col gap-1 rounded-card border-2 border-dashed border-line px-4 py-5">
-        <span className="text-base font-extrabold">Nothing loaded</span>
-        <span className="text-[13px] font-semibold text-text-muted">Pick a game from your library to start the room.</span>
-      </section>
-    );
+/** The console in the side column. The selected cartridge sits in its slot; Start lights up. */
+function ConsoleDeck({
+  game,
+  insertKey,
+  label,
+  onStart,
+}: {
+  game: Game | null;
+  insertKey: string;
+  label: string;
+  onStart: () => void;
+}) {
+  const size = game ? cartSize(game.systemId) : null;
   return (
-    <section aria-label="Now playing" className="flex gap-4 rounded-card bg-surface p-3 shadow-soft">
-      <span className="flex h-[112px] w-[112px] flex-none overflow-hidden rounded-tile">
-        <BoxArt game={game} small />
-      </span>
-      <div className="flex min-w-0 flex-1 flex-col justify-between gap-2 py-0.5">
-        <div className="flex min-w-0 flex-col">
-          <span className="text-xs font-extrabold tracking-wide text-primary-text uppercase">{label}</span>
-          <span className="line-clamp-2 text-lg leading-tight font-extrabold">{game.title}</span>
-          <span className="text-[13px] font-bold text-text-muted">{game.system}</span>
+    <section aria-label="Console" className="flex flex-col pt-1">
+      {/* The cart's lower part sits behind the console body, as if pushed into the slot. */}
+      <div className="relative h-[120px]">
+        {game && size && (
+          <div key={insertKey} className="absolute left-1/2 -translate-x-1/2" style={{ bottom: -size.height * 0.28 }}>
+            <Cartridge game={game} className="cart-insert cart-shadow" />
+          </div>
+        )}
+      </div>
+      <div className="console-body relative z-10 flex flex-col gap-4 rounded-[26px] px-5 pt-7 pb-5">
+        <span
+          aria-hidden
+          className="absolute top-0 left-1/2 h-3 -translate-x-1/2 rounded-b-lg bg-[#2B2B2E] transition-[width] duration-300 ease-out"
+          style={{ width: (size?.width ?? 140) + 14 }}
+        />
+        <div className="flex items-center gap-3">
+          <span
+            aria-hidden
+            className={`h-2.5 w-2.5 flex-none rounded-full transition-[background-color,box-shadow] duration-300 ${
+              game ? "bg-live shadow-[0_0_10px_2px_rgba(229,72,59,0.55)]" : "bg-slot-empty"
+            }`}
+          />
+          <div className="flex min-w-0 flex-col">
+            {game ? (
+              <>
+                <span className="text-[11px] font-extrabold tracking-wide text-primary-text uppercase">{label}</span>
+                <span className="line-clamp-2 text-lg leading-tight font-extrabold">{game.title}</span>
+                <span className="text-[13px] font-bold text-text-muted">{game.system}</span>
+              </>
+            ) : (
+              <>
+                <span className="text-lg leading-tight font-extrabold">No game inserted</span>
+                <span className="text-[13px] font-bold text-text-muted">Pick a cartridge from the shelf.</span>
+              </>
+            )}
+          </div>
         </div>
-        <button
-          type="button"
-          onClick={onStart}
-          data-nav-default=""
-          className="ring-row inline-flex min-h-10 items-center justify-center gap-1.5 self-start rounded-full bg-primary-text px-5 text-sm font-extrabold text-white"
-        >
-          <Play size={15} fill="currentColor" aria-hidden />
-          Start
-        </button>
+        <div className="flex items-center justify-between gap-4">
+          <span aria-hidden className="flex gap-1.5">
+            {[0, 1, 2, 3, 4].map((i) => (
+              <span key={i} className="h-6 w-1.5 rounded-full bg-black/10" />
+            ))}
+          </span>
+          <button
+            type="button"
+            onClick={onStart}
+            disabled={!game}
+            data-nav-default={game ? "" : undefined}
+            className="ring-row inline-flex min-h-12 items-center gap-2 rounded-full bg-primary-text px-7 text-base font-extrabold text-white shadow-[0_4px_0_#123F80] transition-[background-color,box-shadow,translate] duration-200 active:translate-y-0.5 active:shadow-[0_2px_0_#123F80] disabled:cursor-default disabled:bg-[#CFCFD5] disabled:text-[#86868E] disabled:shadow-[0_4px_0_#B5B5BC]"
+          >
+            <Play size={16} fill="currentColor" aria-hidden />
+            Start
+          </button>
+        </div>
       </div>
     </section>
   );
 }
 
-function GameTile({
+function ShelfCart({
   game,
-  onClick,
-  current,
+  selected,
   isDefault,
+  onClick,
 }: {
   game: Game;
-  onClick: () => void;
-  current: boolean;
+  selected: boolean;
   isDefault: boolean;
+  onClick: () => void;
 }) {
+  // Small carts still get room for a two-line title.
+  const width = Math.max(cartSize(game.systemId).width, 116);
   return (
     <button
       type="button"
       onClick={onClick}
-      aria-label={`${game.title}, ${game.system}${current ? ", selected" : ""}`}
+      aria-label={`${game.title}, ${game.system}${selected ? ", in the console. Start" : ""}`}
       data-nav-default={isDefault ? "" : undefined}
-      className="ring-tile group flex w-full flex-col gap-2 rounded-tile bg-transparent p-0 text-left"
+      className="ring-tile group flex flex-col items-center rounded-tile bg-transparent p-0"
+      style={{ width }}
     >
+      <Cartridge
+        game={game}
+        ghost={selected}
+        className={
+          selected
+            ? ""
+            : "cart-shadow transition-[translate] duration-200 ease-out group-hover:-translate-y-1.5 group-focus:-translate-y-1.5"
+        }
+      />
+      <span aria-hidden className="shelf-board -mx-3 h-2.5 self-stretch" />
       <span
-        className={`relative flex aspect-square w-full overflow-hidden rounded-tile shadow-soft transition-[box-shadow,translate] duration-200 ease-out group-hover:-translate-y-0.5 group-hover:shadow-lift group-focus:shadow-lift ${
-          current ? "outline-[3px] outline-offset-[3px] outline-primary-text outline-solid" : ""
+        className={`mt-2 line-clamp-2 h-[2.5em] text-center text-[13px] leading-[1.25] font-bold ${
+          selected ? "text-text-muted" : "text-text"
         }`}
       >
-        <BoxArt game={game} />
-        {current && (
-          <span className="absolute top-2 left-2 rounded-full bg-primary-text px-2.5 py-1 text-[11px] font-extrabold text-white">
-            Selected
-          </span>
-        )}
-      </span>
-      <span className="flex min-w-0 flex-col px-0.5">
-        <span className="truncate text-sm font-bold text-text">{game.title}</span>
-        <span className="truncate text-xs font-bold text-text-muted">{game.system}</span>
+        {game.title}
       </span>
     </button>
-  );
-}
-
-const ART_COLORS = ["#E5603F", "#1F9E89", "#7A5AF0", "#E0A21B", "#1A5FC0"];
-
-/** Box art when libretro has it; generated initials while it loads or if it doesn't. */
-function BoxArt({ game, small }: { game: Game; small?: boolean }) {
-  const [failed, setFailed] = useState(false);
-  let hash = 0;
-  for (const ch of game.title) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
-  const color = ART_COLORS[hash % ART_COLORS.length];
-  const initials = game.title
-    .split(/\s+/)
-    // Capitalized words only, so "The Legend of Zelda" reads TLZ.
-    .filter((w) => /^[A-Z0-9]/.test(w))
-    .slice(0, 3)
-    // Keep numbers whole so "Mario Kart 64" reads MK64.
-    .map((w) => (/^\d/.test(w) ? w : w[0]))
-    .join("");
-  return (
-    <span
-      aria-hidden
-      className={`relative flex min-h-0 flex-1 items-center justify-center overflow-hidden font-extrabold text-white/90 ${
-        small ? "text-3xl" : "text-4xl"
-      }`}
-      style={{ background: `linear-gradient(135deg, ${color}, #2B2B2E)` }}
-    >
-      {initials}
-      {game.cover && !failed && (
-        // Plain <img>: cross-origin, already sized, and next/image would need a remote loader.
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={game.cover}
-          alt=""
-          loading="lazy"
-          decoding="async"
-          onError={() => setFailed(true)}
-          className="absolute inset-0 h-full w-full object-cover"
-        />
-      )}
-    </span>
   );
 }
 
