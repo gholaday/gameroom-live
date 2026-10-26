@@ -72,6 +72,17 @@ export type Game = {
   cover?: string;
 };
 export type PlayerInfo = { slot: number; name: string; isHost?: boolean; rttMs?: number };
+/** One chat message. `slot` colors the name; 0 is a spectator. */
+export type ChatLine = { id: number; slot: number; name: string; text: string };
+export const MAX_CHAT = 200;
+/** Lines the host keeps and sends to new joiners. */
+export const CHAT_HISTORY = 50;
+
+/** Chat text as sent: single spaces, trimmed, capped. Empty means don't send. */
+export function chatText(raw: string) {
+  return raw.replace(/\s+/g, " ").trim().slice(0, MAX_CHAT);
+}
+
 /** Everyone who can point or draw: host is peer 0, guests 1..255. */
 export type OverlayPeer = { id: number; name: string; slot: number };
 
@@ -79,7 +90,7 @@ export type ControlMessage =
   /** `token` is per room and per tab, so a reconnect gets its slot back. */
   | { t: "hello"; name: string; token: string }
   | { t: "name"; name: string }
-  | { t: "welcome"; hostName: string; game: Game | null; players: PlayerInfo[]; spectators: number }
+  | { t: "welcome"; hostName: string; game: Game | null; players: PlayerInfo[]; spectators: number; chat?: ChatLine[] }
   | { t: "claim" }
   | { t: "unclaim" }
   /** 0 means spectator. */
@@ -92,5 +103,9 @@ export type ControlMessage =
   | { t: "peers"; peers: OverlayPeer[]; self: number }
   /** Host encode time per frame for this guest's stream, about once a second. */
   | { t: "stats"; encodeMs: number }
+  /** Guest to host: a chat message to post. */
+  | { t: "say"; text: string }
+  /** Host to guests: a posted chat line, from anyone. */
+  | { t: "chat"; line: ChatLine }
   | { t: "kicked" }
   | { t: "end" };

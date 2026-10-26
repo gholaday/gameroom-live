@@ -5,8 +5,11 @@ import { readGamepad } from "@/lib/input/retropad";
 import { ICE_CONFIG, PeerLink } from "@/lib/net/link";
 import { guestPeerId, signalingOptions } from "@/lib/net/signaling";
 import {
+  CHAT_HISTORY,
+  chatText,
   encodeInput,
   INPUT_BYTES,
+  type ChatLine,
   type ControlMessage,
   type Game,
   type InputState,
@@ -41,6 +44,8 @@ export type GuestSnapshot = {
   slot: number;
   claiming: boolean;
   stream: MediaStream | null;
+  /** Recent chat, oldest first. */
+  chat: ChatLine[];
 };
 
 export class GuestSession {
@@ -54,6 +59,7 @@ export class GuestSession {
     slot: 0,
     claiming: false,
     stream: null,
+    chat: [],
   };
   private readonly listeners = new Set<() => void>();
   private peer: Peer | null = null;
@@ -198,6 +204,12 @@ export class GuestSession {
     this.set({ claiming: false });
   }
 
+  /** Posts to the room's chat; the host echoes it back to everyone, us included. */
+  say(raw: string) {
+    const text = chatText(raw);
+    if (text) this.link?.sendControl({ t: "say", text });
+  }
+
   rename(name: string) {
     setName(name);
     this.link?.sendControl({ t: "name", name: getName("Guest") });
@@ -246,7 +258,13 @@ export class GuestSession {
   private onControl(msg: ControlMessage) {
     switch (msg.t) {
       case "welcome":
-        this.set({ hostName: msg.hostName, game: msg.game, players: msg.players, spectators: msg.spectators });
+        this.set({
+          hostName: msg.hostName,
+          game: msg.game,
+          players: msg.players,
+          spectators: msg.spectators,
+          chat: msg.chat ?? this.snapshot.chat,
+        });
         break;
       case "players":
         this.set({ players: msg.players, spectators: msg.spectators });
@@ -267,6 +285,9 @@ export class GuestSession {
         break;
       case "stats":
         this.encodeMs = msg.encodeMs;
+        break;
+      case "chat":
+        this.set({ chat: [...this.snapshot.chat, msg.line].slice(-CHAT_HISTORY) });
         break;
       case "kicked":
         this.gen++;

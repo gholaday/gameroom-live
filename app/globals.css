@@ -111,11 +111,20 @@ button {
   }
 }
 .menu-in {
-  animation: menu-in 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  animation: menu-in 200ms cubic-bezier(0.22, 1, 0.36, 1);
 }
-/* Mirrors menu-in; the panel unmounts on animationend. */
+/* The panel unmounts on animationend. */
+@keyframes menu-out {
+  to {
+    transform: translateX(100%);
+  }
+}
 .menu-out {
-  animation: menu-in 160ms cubic-bezier(0.4, 0, 1, 1) reverse forwards;
+  animation: menu-out 220ms cubic-bezier(0.55, 0, 0.75, 0.3) forwards;
+}
+.menu-in,
+.menu-out {
+  will-change: transform;
 }
 @keyframes fade-in {
   from {
@@ -125,8 +134,33 @@ button {
 .fade-in {
   animation: fade-in 180ms ease-out;
 }
+@keyframes fade-out {
+  to {
+    opacity: 0;
+  }
+}
 .fade-out {
-  animation: fade-in 160ms ease-in reverse forwards;
+  animation: fade-out 220ms ease forwards;
+}
+
+/* A chat line over the game: slides in from the right, holds, fades out. */
+@keyframes chat-toast {
+  from {
+    opacity: 0;
+    transform: translateX(32px);
+  }
+  6%,
+  85% {
+    opacity: 1;
+    transform: none;
+  }
+  to {
+    opacity: 0;
+    transform: translateX(12px);
+  }
+}
+.chat-toast {
+  animation: chat-toast 5s ease-out forwards;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -154,11 +188,6 @@ button {
 /* Home screen cartridges and console. */
 .cart-shadow {
   filter: drop-shadow(0 6px 7px rgba(0, 0, 0, 0.22));
-}
-.shelf-board {
-  border-radius: 3px;
-  background: linear-gradient(#dedee3, #c4c4cb);
-  box-shadow: 0 9px 12px -8px rgba(0, 0, 0, 0.35);
 }
 .console-body {
   background: linear-gradient(#ebebef, #dcdce2);

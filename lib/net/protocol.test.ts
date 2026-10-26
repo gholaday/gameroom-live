@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bit, decodeInput, encodeInput, INPUT_BYTES, seqNewer, type InputState } from "./protocol";
+import { bit, chatText, decodeInput, encodeInput, INPUT_BYTES, MAX_CHAT, seqNewer, type InputState } from "./protocol";
 
 describe("input packet", () => {
   it("round-trips every field, including negative sticks", () => {
@@ -26,5 +26,13 @@ describe("seqNewer", () => {
     expect(seqNewer(2, 0xfffe)).toBe(true);
     expect(seqNewer(0xfffe, 2)).toBe(false);
     expect(seqNewer(7, 7)).toBe(false);
+  });
+});
+
+describe("chatText", () => {
+  it("collapses whitespace, trims, and caps the length", () => {
+    expect(chatText("  gg \n  wp\t ")).toBe("gg wp");
+    expect(chatText("   ")).toBe("");
+    expect(chatText("x".repeat(MAX_CHAT + 50))).toHaveLength(MAX_CHAT);
   });
 });

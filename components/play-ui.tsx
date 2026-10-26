@@ -1,10 +1,10 @@
 "use client";
 
 import { forwardRef, useEffect, useRef, useState, type ReactNode } from "react";
-import { Pencil } from "lucide-react";
+import { Pencil, Send } from "lucide-react";
 import { Avatar, Dot, Hint, HintBar, latencyClass, type PlayerSlot } from "@/components/ui";
 import { MAX_NAME } from "@/lib/identity";
-import type { PlayerInfo } from "@/lib/net/protocol";
+import { chatText, MAX_CHAT, type ChatLine, type PlayerInfo } from "@/lib/net/protocol";
 import { useInitialFocus, useNavAction } from "@/lib/nav/react";
 
 /**
@@ -123,6 +123,7 @@ export function MenuPanel({
   onClosed,
   isSelf,
   onRename,
+  chat,
   children,
 }: {
   system: string;
@@ -136,6 +137,7 @@ export function MenuPanel({
   /** Which row is you: that one gets a rename button. */
   isSelf?: (p: PlayerInfo) => boolean;
   onRename?: (name: string) => void;
+  chat?: { lines: ChatLine[]; onSend: (text: string) => void };
   children: ReactNode;
 }) {
   useInitialFocus(!closing);
@@ -189,6 +191,7 @@ export function MenuPanel({
           )}
         </ul>
         <nav className="mx-5 mt-4 flex flex-col gap-1.5 border-t border-line-soft pt-3.5">{children}</nav>
+        {chat && <ChatBox lines={chat.lines} onSend={chat.onSend} />}
         <div className="mt-auto flex justify-end px-7 pt-[18px] pb-[22px]">
           <HintBar>
             <Hint button="B">Back</Hint>
@@ -282,6 +285,95 @@ function EditableName({ name, onSave }: { name: string; onSave: (name: string) =
         <Pencil size={15} aria-hidden />
       </button>
     </span>
+  );
+}
+
+const NAME_COLOR = ["text-text-muted", "text-p1", "text-p2", "text-p3", "text-lat-fair"];
+
+/** The room's chat inside the game menu: recent lines and a box to send one. */
+function ChatBox({ lines, onSend }: { lines: ChatLine[]; onSend: (text: string) => void }) {
+  const [draft, setDraft] = useState("");
+  const listRef = useRef<HTMLOListElement>(null);
+  // Stay on the newest line.
+  useEffect(() => {
+    const el = listRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [lines]);
+
+  return (
+    <section aria-label="Chat" className="mx-5 mt-4 flex flex-col gap-2.5 border-t border-line-soft pt-3.5">
+      <ol ref={listRef} aria-live="polite" className="scrollbar flex max-h-[200px] flex-col gap-1.5 overflow-y-auto px-2">
+        {lines.length ? (
+          lines.map((l) => (
+            <li key={l.id} className="text-sm leading-snug break-words">
+              <span className={`font-extrabold ${NAME_COLOR[l.slot] ?? NAME_COLOR[0]}`}>{l.name}</span>{" "}
+              <span className="font-semibold">{l.text}</span>
+            </li>
+          ))
+        ) : (
+          <li className="text-[13px] font-semibold text-text-muted">No messages yet.</li>
+        )}
+      </ol>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (!chatText(draft)) return;
+          onSend(draft);
+          setDraft("");
+        }}
+        className="flex gap-2"
+      >
+        <input
+          aria-label="Message"
+          placeholder="Message everyone"
+          value={draft}
+          maxLength={MAX_CHAT}
+          onChange={(e) => setDraft(e.target.value)}
+          // The emulator's key handler on document cancels every key; keep typing from reaching it.
+          onKeyDown={(e) => e.stopPropagation()}
+          className="ring-row min-h-11 min-w-0 flex-1 rounded-full border-none bg-surface px-4 text-sm font-bold text-text placeholder:font-semibold placeholder:text-text-muted"
+        />
+        <button
+          type="submit"
+          aria-label="Send"
+          className="ring-row flex h-11 w-11 flex-none items-center justify-center rounded-full bg-primary-text text-white"
+        >
+          <Send size={17} aria-hidden />
+        </button>
+      </form>
+    </section>
+  );
+}
+
+/** Most chat lines shown over the game at once. */
+const MAX_TOASTS = 5;
+
+/**
+ * New chat lines over the game while the menu is closed, stacking down the
+ * screen. Each slides in, holds, fades out, then leaves the stack. Lines that
+ * were already there when it mounted stay hidden.
+ */
+export function ChatToast({ lines }: { lines: ChatLine[] }) {
+  const [seen] = useState(() => lines.at(-1)?.id ?? 0);
+  const [gone, setGone] = useState<ReadonlySet<number>>(() => new Set());
+  const shown = lines.filter((l) => l.id > seen && !gone.has(l.id)).slice(-MAX_TOASTS);
+  if (!shown.length) return null;
+  return (
+    <ol
+      aria-hidden
+      className="pointer-events-none absolute top-[70px] right-6 z-10 flex max-w-[min(380px,calc(100%-48px))] flex-col items-end gap-2"
+    >
+      {shown.map((l) => (
+        <li
+          key={l.id}
+          onAnimationEnd={() => setGone((g) => new Set(g).add(l.id))}
+          className="chat-toast rounded-2xl bg-white/92 px-4 py-2.5 text-sm leading-snug break-words shadow-soft"
+        >
+          <span className={`font-extrabold ${NAME_COLOR[l.slot] ?? NAME_COLOR[0]}`}>{l.name}</span>{" "}
+          <span className="font-semibold text-text">{l.text}</span>
+        </li>
+      ))}
+    </ol>
   );
 }
 

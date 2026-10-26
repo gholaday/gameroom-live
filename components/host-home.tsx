@@ -9,7 +9,6 @@ import {
   ChevronRight,
   Copy,
   FolderOpen,
-  Gamepad2,
   Play,
   Power,
   Plus,
@@ -36,7 +35,7 @@ import { useHost, useOrigin } from "@/lib/use-origin";
 
 const SLOTS: PlayerSlot[] = [1, 2, 3, 4];
 
-type View = "library" | "players" | "saves" | "settings";
+type View = "library" | "saves" | "settings";
 
 export function HostHome() {
   const router = useRouter();
@@ -49,6 +48,7 @@ export function HostHome() {
   const fileRef = useRef<HTMLInputElement>(null);
   const folderRef = useRef<HTMLInputElement>(null);
   const copyRef = useRef<HTMLButtonElement>(null);
+  const playersRef = useRef<HTMLDivElement>(null);
 
   const host = useHost("localhost:3000");
   const origin = useOrigin("http://localhost:3000");
@@ -113,8 +113,13 @@ export function HostHome() {
 
   useNavAction("start", start);
   useNavAction("x", focusInvite);
-  // B backs out of an option view first; on the library it ends the session.
-  useNavAction("back", () => (view === "library" ? endSession() : setView("library")));
+  // B closes the players popover or an option view first; on the library it ends the session.
+  useNavAction("back", () => {
+    const active = document.activeElement;
+    if (active instanceof HTMLElement && playersRef.current?.contains(active)) return active.blur();
+    if (view !== "library") return setView("library");
+    endSession();
+  });
 
   const copy = async () => {
     if (!snap.code) return;
@@ -165,15 +170,35 @@ export function HostHome() {
   return (
     <div className="flex min-h-dvh flex-col lg:h-dvh">
       <header className="flex flex-none flex-wrap items-center justify-between gap-4 px-10 py-[22px] max-sm:px-4">
-        <div className="flex items-center gap-2.5">
-          {SLOTS.map((slot) => {
-            const p = snap.players.find((pl) => pl.slot === slot);
-            return p ? (
-              <Avatar key={slot} slot={slot} name={p.name} className="shadow-[0_0_0_3px_#fff]" />
-            ) : (
-              <EmptySlot key={slot} label={`Player ${slot} open`} />
-            );
-          })}
+        {/* Hovering the avatars, or moving focus into them, opens the players popover. */}
+        <div ref={playersRef} className="group/players relative z-40">
+          <button
+            type="button"
+            aria-label={`Players: ${guests ? `${guests} joined` : "no one has joined yet"}`}
+            aria-haspopup="true"
+            className="ring-row flex items-center gap-2.5 rounded-full p-1"
+          >
+            {SLOTS.map((slot) => {
+              const p = snap.players.find((pl) => pl.slot === slot);
+              return p ? (
+                <Avatar key={slot} slot={slot} name={p.name} className="shadow-[0_0_0_3px_#fff]" />
+              ) : (
+                <EmptySlot key={slot} />
+              );
+            })}
+          </button>
+          {/* Top padding bridges the gap, so moving the pointer down keeps it open. */}
+          <div className="invisible absolute top-full left-0 w-[420px] max-w-[calc(100vw-32px)] origin-top-left -translate-y-1 scale-[0.98] pt-2.5 opacity-0 transition-[opacity,translate,scale,visibility] duration-200 ease-out group-focus-within/players:visible group-focus-within/players:translate-y-0 group-focus-within/players:scale-100 group-focus-within/players:opacity-100 group-hover/players:visible group-hover/players:translate-y-0 group-hover/players:scale-100 group-hover/players:opacity-100 motion-reduce:transition-none">
+            <div className="rounded-card shadow-lift">
+              <PlayersPanel
+                hostName={snap.hostName}
+                guests={snap.guests}
+                slots={hostSession.guestSlots()}
+                onSlot={(id, slot) => hostSession.setSlot(id, slot)}
+                onKick={(id) => hostSession.kick(id)}
+              />
+            </div>
+          </div>
         </div>
         <div className="flex items-center gap-2.5">
           <Pill>
@@ -237,7 +262,7 @@ export function HostHome() {
                       <h2 className="text-[13px] font-extrabold tracking-wide text-text-muted uppercase">
                         {sys.name} <span className="font-bold">{list.length}</span>
                       </h2>
-                      {/* Side padding leaves room for the focus ring and the shelf ends. */}
+                      {/* Side padding leaves room for the focus ring. */}
                       <ul className="flex flex-wrap items-end gap-x-6 gap-y-7 px-3 pt-4">
                         {list.map(({ entry, name, game: g }) => (
                           <li key={entry.path} className="flex">
@@ -273,18 +298,10 @@ export function HostHome() {
                   <ArrowLeft size={20} aria-hidden />
                 </button>
                 <h1 id="view-title" className="text-[26px] font-extrabold">
-                  {view === "players" ? "Players" : view === "saves" ? "Saves" : "Settings"}
+                  {view === "saves" ? "Saves" : "Settings"}
                 </h1>
               </div>
-              {view === "players" ? (
-                <PlayersPanel
-                  hostName={snap.hostName}
-                  guests={snap.guests}
-                  slots={hostSession.guestSlots()}
-                  onSlot={(id, slot) => hostSession.setSlot(id, slot)}
-                  onKick={(id) => hostSession.kick(id)}
-                />
-              ) : view === "saves" ? (
+              {view === "saves" ? (
                 <SavesView game={game} romName={snap.rom?.file.name ?? null} onPlay={start} />
               ) : (
                 <>
@@ -340,14 +357,6 @@ export function HostHome() {
           </section>
 
           <nav aria-label="Options" className="flex flex-col rounded-card bg-surface p-1.5 shadow-soft">
-            <OptionRow
-              icon={Gamepad2}
-              color="text-p2"
-              selected={view === "players"}
-              onClick={() => toggleView("players")}
-            >
-              Players
-            </OptionRow>
             <OptionRow
               icon={Save}
               color="text-p3"
@@ -517,9 +526,8 @@ function ShelfCart({
             : "cart-shadow transition-[translate] duration-200 ease-out group-hover:-translate-y-1.5 group-focus:-translate-y-1.5"
         }
       />
-      <span aria-hidden className="shelf-board -mx-3 h-2.5 self-stretch" />
       <span
-        className={`mt-2 line-clamp-2 h-[2.5em] text-center text-[13px] leading-[1.25] font-bold ${
+        className={`mt-2.5 line-clamp-2 h-[2.5em] text-center text-[13px] leading-[1.25] font-bold ${
           selected ? "text-text-muted" : "text-text"
         }`}
       >

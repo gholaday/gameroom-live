@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { OverlayLayer } from "@/components/overlay-layer";
-import { LatencyBreakdown, MenuHint, MenuPanel, MenuRow, setBreakdown, setPill, StatsPill, useMenu } from "@/components/play-ui";
+import { ChatToast, LatencyBreakdown, MenuHint, MenuPanel, MenuRow, setBreakdown, setPill, StatsPill, useMenu } from "@/components/play-ui";
 import { statusText } from "@/components/guest-join";
 import { StreamVideo } from "@/components/stream-video";
 import { TouchPad } from "@/components/touch-pad";
@@ -98,6 +98,7 @@ export function GuestPlay({
           {playing ? `Player ${snap.slot}` : snap.claiming ? "Joining" : "Watching"}
         </span>
         <MenuHint show={!menuOpen && !touch} />
+        {!menu.shown && <ChatToast lines={snap.chat} />}
         {touch && !menuOpen && (
           <>
             <button
@@ -123,6 +124,7 @@ export function GuestPlay({
           onBack={resume}
           isSelf={(p) => snap.slot > 0 && p.slot === snap.slot}
           onRename={(n) => session.rename(n)}
+          chat={{ lines: snap.chat, onSend: (text) => session.say(text) }}
         >
           <MenuRow onClick={resume} isDefault>
             Resume

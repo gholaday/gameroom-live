@@ -4,8 +4,9 @@ import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } fr
 import { useRouter } from "next/navigation";
 import { OverlayLayer } from "@/components/overlay-layer";
 import { SaveSlots } from "@/components/save-slots";
-import { MenuHint, MenuNote, MenuPanel, MenuRow, setPill, StatsPill, useMenu } from "@/components/play-ui";
+import { ChatToast, MenuHint, MenuNote, MenuPanel, MenuRow, setPill, StatsPill, useMenu } from "@/components/play-ui";
 import { hostSession } from "@/lib/host/session";
+import type { ChatLine } from "@/lib/net/protocol";
 import { useGameMode, useInitialFocus, useNavAction } from "@/lib/nav/react";
 import { Check, Copy } from "lucide-react";
 import { useOrigin } from "@/lib/use-origin";
@@ -89,6 +90,7 @@ export function HostPlay() {
         )}
         {!ready && <ContinueButton title={snap.rom.game.title} onClick={() => setReady(true)} />}
         <StatsPill ref={pillRef} />
+        {!menu.shown && <ChatToast lines={snap.chat} />}
         <MenuHint show={!menuOpen && snap.running} />
         {error && (
           <p className="absolute bottom-16 rounded-full bg-white/92 px-4 py-2 text-sm font-bold text-danger">
@@ -106,6 +108,7 @@ export function HostPlay() {
           players={snap.players}
           spectators={snap.spectators}
           inviteLink={snap.code ? `${origin}/r/${snap.code}` : null}
+          chat={snap.chat}
           onResume={menu.close}
           onEnd={end}
         />
@@ -123,6 +126,7 @@ function HostMenu({
   players,
   spectators,
   inviteLink,
+  chat,
   onResume,
   onEnd,
   closing,
@@ -135,6 +139,7 @@ function HostMenu({
   players: Parameters<typeof MenuPanel>[0]["players"];
   spectators: number;
   inviteLink: string | null;
+  chat: ChatLine[];
   onResume: () => void;
   onEnd: () => void;
 }) {
@@ -166,6 +171,7 @@ function HostMenu({
       onClosed={onClosed}
       isSelf={isHostRow}
       onRename={(n) => hostSession.setHostName(n)}
+      chat={{ lines: chat, onSend: (text) => hostSession.say(text) }}
     >
       {slots ? (
         <SaveSlots

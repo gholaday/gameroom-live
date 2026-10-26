@@ -18,8 +18,11 @@ import { ICE_CONFIG, PeerLink } from "@/lib/net/link";
 import { signalingOptions } from "@/lib/net/signaling";
 import { HOST_PEER, stampPeer } from "@/lib/net/overlay";
 import {
+  CHAT_HISTORY,
+  chatText,
   decodeInput,
   seqNewer,
+  type ChatLine,
   type ControlMessage,
   type Game,
   type InputState,
@@ -80,6 +83,8 @@ export type HostSnapshot = {
   /** False until the resume record has been checked, so /play doesn't flash "No game". */
   restored: boolean;
   running: boolean;
+  /** Recent chat, oldest first. */
+  chat: ChatLine[];
 };
 
 class HostSession {
@@ -95,7 +100,9 @@ class HostSession {
     resuming: false,
     restored: false,
     running: false,
+    chat: [],
   };
+  private chatId = 0;
   private readonly listeners = new Set<() => void>();
   private peer: Peer | null = null;
   private readonly guests = new Map<string, Guest>();
@@ -399,7 +406,7 @@ class HostSession {
     this.resumeState = null;
     this.timers = [];
     this.peers = [];
-    this.set({ status: "idle", code: null, players: [], spectators: 0, guests: [], rom: null, resuming: false, running: false });
+    this.set({ status: "idle", code: null, players: [], spectators: 0, guests: [], rom: null, resuming: false, running: false, chat: [] });
   }
 
   // ---------- Player management ----------
@@ -543,6 +550,7 @@ class HostSession {
           game: this.snapshot.running ? (this.snapshot.rom?.game ?? null) : null,
           players: this.snapshot.players,
           spectators: this.snapshot.spectators,
+          chat: this.snapshot.chat,
         });
         // A reload can arrive before the old connection is noticed as gone:
         // the new one takes over its slot.
@@ -578,7 +586,26 @@ class HostSession {
         this.assign(guest, 0);
         this.publishPlayers();
         break;
+      case "say":
+        this.post(guest.name, guest.slot, msg.text);
+        break;
     }
+  }
+
+  // ---------- Chat ----------
+
+  /** The host's own chat message. */
+  say(text: string) {
+    this.post(this.snapshot.hostName, 1, text);
+  }
+
+  /** Adds a line to the room's chat and sends it to every guest. */
+  private post(name: string, slot: number, raw: string) {
+    const text = chatText(raw);
+    if (!text) return;
+    const line: ChatLine = { id: ++this.chatId, slot, name, text };
+    this.set({ chat: [...this.snapshot.chat, line].slice(-CHAT_HISTORY) });
+    this.broadcast({ t: "chat", line });
   }
 
   /** Hot path. Newest packet wins; apply immediately, edges only. */
