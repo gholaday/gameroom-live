@@ -25,7 +25,12 @@ for (const core of CORES) {
   const wasm = path.join(OUT, `${core}_libretro.wasm`);
   if ((await exists(js)) && (await exists(wasm))) continue;
 
-  const url = `https://cdn.jsdelivr.net/gh/${BUILD}/retroarch/${core}_libretro.zip`;
+  // Cores missing from that build (N64) come from the same author's custom
+  // builds against the same RetroArch version.
+  const source = build.sources?.[core];
+  const url = source
+    ? `https://cdn.jsdelivr.net/${source}/${core}_libretro.zip`
+    : `https://cdn.jsdelivr.net/gh/${BUILD}/retroarch/${core}_libretro.zip`;
   console.log(`fetch-cores: downloading ${core}`);
   const res = await fetch(url);
   if (!res.ok) throw new Error(`fetch-cores: ${url} returned ${res.status}`);

@@ -71,6 +71,17 @@ const SHAPES: Record<SystemId, Shape> = {
     ),
     initials: "text-3xl",
   },
+  // 64-bit home cart, 116 x 75: wide, arched top, ridged grips down both sides.
+  n64: {
+    w: 116,
+    h: 75,
+    body: "M8 5Q58 -1 108 5Q116 6 116 14V71Q116 75 112 75H4Q0 75 0 71V14Q0 6 8 5Z",
+    fill: "#9A9AA1",
+    label: { x: 15, y: 11, w: 86, h: 52, r: 3 },
+    recess: "#85858C",
+    details: lines(12, 4, (y) => `M3 ${18 + y}H9M107 ${18 + y}H113`, "#7E7E85", 1),
+    initials: "text-2xl",
+  },
   // Handheld cart, 57 x 65: clipped top corner, ridged grip, arrow at the base.
   gb: {
     w: 57,

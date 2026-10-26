@@ -294,17 +294,22 @@ function JoinPicker({
   const [mode, setMode] = useState<InputMode>(likelyMode);
   const ref = useRef<HTMLDivElement>(null);
   const joinRef = useRef<HTMLButtonElement>(null);
+  const closeRef = useRef(onClose);
+  useEffect(() => {
+    closeRef.current = onClose;
+  });
 
+  // Once on open: lobby updates mustn't pull focus back to Join mid-choice.
   useEffect(() => {
     joinRef.current?.focus();
     // A click anywhere else closes it; clicks on its own spot toggle it there.
     const onDown = (e: PointerEvent) => {
       const spot = ref.current?.parentElement;
-      if (spot && !spot.contains(e.target as Node)) onClose();
+      if (spot && !spot.contains(e.target as Node)) closeRef.current();
     };
     document.addEventListener("pointerdown", onDown);
     return () => document.removeEventListener("pointerdown", onDown);
-  }, [onClose]);
+  }, []);
 
   return (
     <div

@@ -3,7 +3,7 @@ import type { RetroPadButton } from "@/lib/net/protocol";
 // Everything that differs between systems. The stream, input protocol,
 // overlay and reconnect logic are the same for all of them.
 
-export type SystemId = "snes" | "nes" | "genesis" | "gb" | "gba";
+export type SystemId = "snes" | "nes" | "genesis" | "n64" | "gb" | "gba";
 
 /** A face button as the console labels it, and the RetroPad button the core reads. */
 export type PadButton = { button: RetroPadButton; label: string };
@@ -72,6 +72,21 @@ export const SYSTEMS: Record<SystemId, System> = {
       { button: "a", label: "C" },
     ],
     shoulders: false,
+  },
+  n64: {
+    id: "n64",
+    name: "N64",
+    core: "mupen64plus_next",
+    extensions: ["z64", "n64", "v64"],
+    size: { width: 640, height: 480 },
+    players: 4,
+    // mupen64plus_next: N64 A and B are RetroPad B and Y; Z is L2; the C
+    // buttons are the right stick.
+    face: [
+      { button: "y", label: "B" },
+      { button: "b", label: "A" },
+    ],
+    shoulders: true,
   },
   gb: {
     id: "gb",

@@ -12,6 +12,7 @@ overlay, reconnect, library) is shared.
 | SNES | snes9x | 512x448 (2x) | 4, multitap in port 2 |
 | NES | fceumm | 512x480 (2x) | 4, Four Score by checksum |
 | Genesis | genesis_plus_gx | 640x448 (2x) | 2 |
+| N64 | mupen64plus_next | 640x480 | 4 (guest sticks not yet) |
 | Game Boy / Color | gambatte | 480x432 (3x) | 1 |
 | Game Boy Advance | mgba | 720x480 (3x) | 1 |
 
@@ -27,9 +28,15 @@ overlay, reconnect, library) is shared.
 - Genesis stays at 2. Team Player and EA 4-Way Play exist in genesis_plus_gx
   (device ids 1537 and 1025, from its libretro.c), but nothing detects which a
   game wants, and the wrong one can unplug player 1. Skipped for now.
-- Not supported: N64 (no web build of mupen64plus_next or parallel_n64 in the
-  RetroArch 1.22.2 emscripten cores or the nightlies) and PS1 (pcsx_rearmed
-  exists; disc images and BIOS need their own work). A PS1 folder's `.bin`
+- N64: mupen64plus_next isn't in the RetroArch 1.22.2 emscripten build, but
+  the same author publishes one built against 1.22.2 in the
+  `retroassembly-custom-cores` npm package. `core-build.json` names that
+  source and `fetch-cores` downloads it like the others. The host plays with a
+  real stick through RetroArch's gamepad input. Guests' input goes in as
+  keyboard presses, so their sticks don't drive the N64 stick yet, and the
+  touch pad has no Z or C buttons.
+- Not supported: PS1 (pcsx_rearmed exists; disc images and BIOS need their
+  own work). A PS1 folder's `.bin`
   tracks are skipped when a `.cue` or other disc index sits beside them, and a
   `.bin` over 16 MB opened by hand is refused as a CD image.
 
