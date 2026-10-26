@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { OverlayLayer } from "@/components/overlay-layer";
 import { MenuHint, MenuPanel, MenuRow, setPill, StatsPill } from "@/components/play-ui";
 import { StreamVideo } from "@/components/stream-video";
 import type { GuestSession, GuestSnapshot } from "@/lib/guest/session";
@@ -18,6 +19,7 @@ export function GuestPlay({
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const pillRef = useRef<HTMLSpanElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
   const playing = snap.slot > 0;
 
   useGameMode(!menuOpen);
@@ -45,10 +47,14 @@ export function GuestPlay({
     <div className="fixed inset-0 overflow-hidden bg-game-bg">
       <div inert={menuOpen} className="absolute inset-0 flex items-center justify-center p-6">
         {snap.stream ? (
-          <StreamVideo
-            stream={snap.stream}
-            className={`aspect-[8/7] h-full max-h-full max-w-full rounded-lg object-contain ${menuOpen ? "opacity-55" : ""}`}
-          />
+          <>
+            <StreamVideo
+              ref={videoRef}
+              stream={snap.stream}
+              className={`h-full w-full object-contain ${menuOpen ? "opacity-55" : ""}`}
+            />
+            <OverlayLayer frameRef={videoRef} attach={(o) => session.attachOverlay(o)} sink={session.overlaySink} />
+          </>
         ) : (
           <p className="text-sm font-bold text-[#77777F]">
             {snap.status === "ended" ? "The host ended the session." : "Waiting for the host to start a game"}

@@ -60,6 +60,8 @@ export function encodePing(kind: typeof PING | typeof PONG, time: number, out: D
 
 export type Game = { title: string; system: string };
 export type PlayerInfo = { slot: number; name: string; isHost?: boolean; rttMs?: number };
+/** Everyone who can point or draw: host is peer 0, guests 1..255. */
+export type OverlayPeer = { id: number; name: string; slot: number };
 
 export type ControlMessage =
   | { t: "hello"; name: string }
@@ -72,4 +74,6 @@ export type ControlMessage =
   | { t: "game"; game: Game | null }
   | { t: "offer"; sdp: string }
   | { t: "answer"; sdp: string }
+  /** `self` is the receiving guest's own overlay id. */
+  | { t: "peers"; peers: OverlayPeer[]; self: number }
   | { t: "end" };

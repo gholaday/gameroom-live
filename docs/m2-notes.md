@@ -82,3 +82,28 @@ npm run dev
    any controller button, or click Keyboard. Use Just watch to spectate.
 3. The pill top-left shows RTT and fps. Esc, Home, or Select+Start opens the
    menu.
+
+## Spectator overlay: hands and ink
+
+Anyone in the room, player or spectator, can point and draw on the game with a
+mouse or touch. Everyone else sees a hand in that person's color with their
+name, plus the ink, which fades out after 4 seconds.
+
+- **Transport:** two more pre-negotiated channels on each guest's connection.
+  - `cursor` (id 101) is unordered with no retransmits. Each packet is 7 bytes
+    and the newest wins. Sent at most every 33 ms.
+  - `ink` (id 102) is reliable and ordered. It carries batches of up to 64
+    points.
+
+  Coordinates are normalized to the game frame, so every screen size lines up.
+- **Relay:** guests send to the host. The host stamps the sender's id into the
+  packet, draws it, and forwards the same buffer to every other guest. The
+  host's own pointer goes out as peer 0. A `peers` control message carries
+  names, slots and each guest's own id, so colors match everywhere: players
+  use their slot color, spectators a palette.
+- **Cost:** the overlay is plain DOM and canvas outside React
+  (`lib/overlay/controller.ts`). Hands move with `transform`, all ink is one
+  2D canvas, and the rAF loop only runs while a hand is moving or ink is
+  fading. Sends ride that loop, so a fast mouse can't flood the channel.
+- **Fit:** the overlay sits on the picture's box inside the `object-contain`
+  frame, computed from the frame's intrinsic size, not its CSS box.

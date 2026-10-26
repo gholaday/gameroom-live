@@ -2,7 +2,16 @@ import type { Peer } from "peerjs";
 import { getName } from "@/lib/identity";
 import { KEYBOARD, readGamepad } from "@/lib/input/retropad";
 import { fetchIceConfig, PeerLink } from "@/lib/net/link";
-import { encodeInput, INPUT_BYTES, type ControlMessage, type Game, type InputState, type PlayerInfo } from "@/lib/net/protocol";
+import {
+  encodeInput,
+  INPUT_BYTES,
+  type ControlMessage,
+  type Game,
+  type InputState,
+  type OverlayPeer,
+  type PlayerInfo,
+} from "@/lib/net/protocol";
+import type { OverlayController } from "@/lib/overlay/controller";
 import { peerIdFor } from "@/lib/net/room";
 
 // The guest's side: connect to the host's room, show the stream, and (once a
@@ -50,6 +59,9 @@ export class GuestSession {
   private readonly sent: InputState = { buttons: -1, lx: 0, ly: 0, rx: 0, ry: 0 };
   private readonly packet = new DataView(new ArrayBuffer(INPUT_BYTES));
   private keyButtons = 0;
+  private overlay: OverlayController | null = null;
+  private peers: OverlayPeer[] = [];
+  private selfId = 0;
   /** Bumped by connect/close so a stale async connect (React Strict Mode) bows out. */
   private gen = 0;
 
@@ -94,6 +106,8 @@ export class GuestSession {
       const conn = peer.connect(peerIdFor(this.code), { reliable: true, serialization: "json" });
       const link = new PeerLink(conn, {
         onControl: (msg) => this.onControl(msg),
+        onCursor: (buf) => this.overlay?.remoteCursor(buf),
+        onInk: (buf) => this.overlay?.remoteInk(buf),
         onClose: () => {
           if (gen !== this.gen) return;
           this.stopInput();
@@ -127,6 +141,20 @@ export class GuestSession {
     this.set({ claiming: false });
   }
 
+  attachOverlay(overlay: OverlayController) {
+    this.overlay = overlay;
+    overlay.setPeers(this.peers, this.selfId);
+    return () => {
+      if (this.overlay === overlay) this.overlay = null;
+    };
+  }
+
+  /** Our pointer and ink go to the host, which relays them to everyone else. */
+  readonly overlaySink = {
+    cursor: (packet: DataView<ArrayBuffer>) => this.link?.sendCursor(packet),
+    ink: (packet: ArrayBuffer) => this.link?.sendInk(packet),
+  };
+
   close() {
     this.gen++;
     this.stopInput();
@@ -151,6 +179,11 @@ export class GuestSession {
         this.set({ slot: msg.slot, claiming: false });
         if (msg.slot) this.startInput();
         else this.stopInput();
+        break;
+      case "peers":
+        this.peers = msg.peers;
+        this.selfId = msg.self;
+        this.overlay?.setPeers(msg.peers, msg.self);
         break;
       case "end":
         this.stopInput();

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
+import { OverlayLayer } from "@/components/overlay-layer";
 import { MenuHint, MenuNote, MenuPanel, MenuRow, setPill, StatsPill } from "@/components/play-ui";
 import { hostSession, STREAM_SIZE } from "@/lib/host/session";
 import { useGameMode, useInitialFocus, useNavAction } from "@/lib/nav/react";
@@ -58,9 +59,11 @@ export function HostPlay() {
           ref={canvasRef}
           width={STREAM_SIZE.width}
           height={STREAM_SIZE.height}
-          className={`aspect-[8/7] max-h-full max-w-full rounded-lg [image-rendering:pixelated] ${menuOpen ? "opacity-55" : ""}`}
-          style={{ height: "100%" }}
+          className={`h-full w-full object-contain [image-rendering:pixelated] ${menuOpen ? "opacity-55" : ""}`}
         />
+        {snap.running && (
+          <OverlayLayer frameRef={canvasRef} attach={(o) => hostSession.attachOverlay(o)} sink={hostSession.overlaySink} />
+        )}
         <StatsPill ref={pillRef} />
         <MenuHint show={!menuOpen && snap.running} />
         {error && (

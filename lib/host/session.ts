@@ -4,6 +4,8 @@ import { installAudioTap, type AudioTap } from "@/lib/emulator/audio-tap";
 import { coreForFile, selfHostedCores } from "@/lib/emulator/cores";
 import { InputInjector, REMOTE_PLAYERS, remoteBindingsConfig } from "@/lib/emulator/injector";
 import { pinCanvasSize } from "@/lib/emulator/pin-canvas";
+import { HOST_PEER, stampPeer } from "@/lib/net/overlay";
+import type { OverlayController } from "@/lib/overlay/controller";
 import { getName } from "@/lib/identity";
 import { preferCodec } from "@/lib/net/codecs";
 import { fetchIceConfig, PeerLink } from "@/lib/net/link";
@@ -13,6 +15,7 @@ import {
   type ControlMessage,
   type Game,
   type InputState,
+  type OverlayPeer,
   type PlayerInfo,
 } from "@/lib/net/protocol";
 import { MAX_GUESTS, newRoomCode, peerIdFor } from "@/lib/net/room";
@@ -40,6 +43,8 @@ type Guest = {
   lastInputAt: number;
   input: InputState;
   hasMedia: boolean;
+  /** Pointer and ink identity, 1..255. */
+  overlayId: number;
 };
 
 export type HostSnapshot = {
@@ -72,6 +77,8 @@ class HostSession {
   private injector: InputInjector | null = null;
   private stream: MediaStream | null = null;
   private timers: number[] = [];
+  private overlay: OverlayController | null = null;
+  private peers: OverlayPeer[] = [];
 
   subscribe = (fn: () => void) => {
     this.listeners.add(fn);
@@ -189,6 +196,25 @@ class HostSession {
     this.set({ status: "idle", code: null, players: [], spectators: 0, rom: null, running: false });
   }
 
+  /** Shows guests' hands and ink on the host view; the host's own go to everyone. */
+  attachOverlay(overlay: OverlayController) {
+    this.overlay = overlay;
+    overlay.setPeers(this.peers, HOST_PEER);
+    return () => {
+      if (this.overlay === overlay) this.overlay = null;
+    };
+  }
+
+  /** Sink for the host's own pointer: peer 0 is already in the packet. */
+  readonly overlaySink = {
+    cursor: (packet: DataView<ArrayBuffer>) => {
+      for (const g of this.guests.values()) g.link.sendCursor(packet);
+    },
+    ink: (packet: ArrayBuffer) => {
+      for (const g of this.guests.values()) g.link.sendInk(packet);
+    },
+  };
+
   /** Worst guest RTT and the first guest's outbound video fps, for the host pill. */
   async sampleStats(): Promise<{ rttMs: number; fps: number | null; guests: number }> {
     let rttMs = 0;
@@ -213,8 +239,12 @@ class HostSession {
       return;
     }
     conn.on("open", () => {
+      const used = new Set([...this.guests.values()].map((g) => g.overlayId));
+      let overlayId = 1;
+      while (used.has(overlayId) && overlayId < 255) overlayId++;
       const guest: Guest = {
         id: conn.peer,
+        overlayId,
         name: "Guest",
         slot: 0,
         seq: 0,
@@ -225,6 +255,8 @@ class HostSession {
         link: new PeerLink(conn, {
           onControl: (msg) => this.onControl(guest, msg),
           onInput: (view) => this.onInput(guest, view),
+          onCursor: (buf) => this.relay(guest, buf, "cursor"),
+          onInk: (buf) => this.relay(guest, buf, "ink"),
           onClose: () => this.drop(guest),
         }),
       };
@@ -278,6 +310,18 @@ class HostSession {
     this.injector.apply(guest.slot, guest.input.buttons);
   }
 
+  /** Stamp the sender, show it here, and pass it to everyone else. */
+  private relay(from: Guest, buf: ArrayBuffer, kind: "cursor" | "ink") {
+    stampPeer(buf, from.overlayId);
+    if (kind === "cursor") this.overlay?.remoteCursor(buf);
+    else this.overlay?.remoteInk(buf);
+    for (const g of this.guests.values()) {
+      if (g === from) continue;
+      if (kind === "cursor") g.link.sendCursor(buf);
+      else g.link.sendInk(buf);
+    }
+  }
+
   private release(guest: Guest) {
     if (guest.slot) this.injector?.releaseAll(guest.slot);
   }
@@ -327,6 +371,7 @@ class HostSession {
       else spectators++;
     }
     players.sort((a, b) => a.slot - b.slot);
+    this.publishPeers();
     const prev = this.snapshot;
     const same =
       prev.spectators === spectators &&
@@ -335,6 +380,16 @@ class HostSession {
     if (same) return;
     this.set({ players, spectators });
     this.broadcast({ t: "players", players, spectators });
+  }
+
+  private publishPeers() {
+    const peers: OverlayPeer[] = [{ id: HOST_PEER, name: this.snapshot.hostName, slot: 1 }];
+    for (const g of this.guests.values()) peers.push({ id: g.overlayId, name: g.name, slot: g.slot });
+    const prev = this.peers;
+    if (prev.length === peers.length && prev.every((p, i) => p.id === peers[i].id && p.name === peers[i].name && p.slot === peers[i].slot)) return;
+    this.peers = peers;
+    this.overlay?.setPeers(peers, HOST_PEER);
+    for (const g of this.guests.values()) g.link.sendControl({ t: "peers", peers, self: g.overlayId });
   }
 
   private startTimers() {
