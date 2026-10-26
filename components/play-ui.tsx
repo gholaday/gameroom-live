@@ -1,8 +1,9 @@
 "use client";
 
-import { forwardRef, useEffect, useRef, useState, type ReactNode } from "react";
-import { Pencil, Send } from "lucide-react";
+import { forwardRef, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import { Pencil, Send, Volume1, Volume2, VolumeX } from "lucide-react";
 import { Avatar, Dot, Hint, HintBar, latencyClass, type PlayerSlot } from "@/components/ui";
+import { effectiveVolume, getAudio, getAudioServer, setAudio, subscribeAudio } from "@/lib/audio-pref";
 import { MAX_NAME } from "@/lib/identity";
 import { chatText, MAX_CHAT, type ChatLine, type PlayerInfo, type PresenceEvent } from "@/lib/net/protocol";
 import { useInitialFocus, useNavAction } from "@/lib/nav/react";
@@ -232,8 +233,17 @@ export function MenuRow({
   );
 }
 
-/** Your name in the menu's player list, with a small button that edits it in place. Enter saves, Esc cancels. */
-function EditableName({ name, onSave }: { name: string; onSave: (name: string) => void }) {
+/** Your name with a small button that edits it in place. Enter saves, Esc cancels. */
+export function EditableName({
+  name,
+  onSave,
+  className = "min-w-0 flex-1",
+}: {
+  name: string;
+  onSave: (name: string) => void;
+  /** Sizing for the row and the field; the menu's player list fills its row. */
+  className?: string;
+}) {
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(name);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -253,7 +263,7 @@ function EditableName({ name, onSave }: { name: string; onSave: (name: string) =
           if (value.trim()) onSave(value);
           setEditing(false);
         }}
-        className="flex min-w-0 flex-1"
+        className={`flex ${className}`}
       >
         <input
           autoFocus
@@ -270,7 +280,7 @@ function EditableName({ name, onSave }: { name: string; onSave: (name: string) =
       </form>
     );
   return (
-    <span className="flex min-w-0 flex-1 items-center gap-1">
+    <span className={`flex items-center gap-1 ${className}`}>
       <span className="truncate font-bold">{name}</span>
       <button
         ref={buttonRef}
@@ -411,6 +421,47 @@ export function PresenceToast({ events }: { events: PresenceEvent[] }) {
         </>
       )}
     </ToastStack>
+  );
+}
+
+/** This device's game volume. */
+export function useAudioPref() {
+  return useSyncExternalStore(subscribeAudio, getAudio, getAudioServer);
+}
+
+/**
+ * Speaker button in the corner of the game: mutes on click, and a volume
+ * slider slides out on hover or focus.
+ */
+export function AudioWidget() {
+  const audio = useAudioPref();
+  const level = effectiveVolume(audio);
+  const Icon = level === 0 ? VolumeX : level < 0.5 ? Volume1 : Volume2;
+  return (
+    <div className="group/audio absolute right-6 bottom-5 z-10 flex items-center rounded-full bg-black/30 p-1 text-white/70 transition-colors duration-200 focus-within:bg-black/60 focus-within:text-white hover:bg-black/60 hover:text-white">
+      <input
+        type="range"
+        min={0}
+        max={100}
+        value={Math.round(level * 100)}
+        aria-label="Volume"
+        onChange={(e) => {
+          const volume = Number(e.target.value) / 100;
+          setAudio({ volume, muted: volume === 0 });
+        }}
+        // Arrows move the slider; keep them (and RetroArch's key handler) off the game.
+        onKeyDown={(e) => e.stopPropagation()}
+        className="h-1 w-0 cursor-pointer opacity-0 [accent-color:white] transition-[width,opacity,margin] duration-200 ease-out group-focus-within/audio:mx-2 group-focus-within/audio:w-24 group-focus-within/audio:opacity-100 group-hover/audio:mx-2 group-hover/audio:w-24 group-hover/audio:opacity-100 motion-reduce:transition-none"
+      />
+      <button
+        type="button"
+        aria-label={level === 0 ? "Unmute" : "Mute"}
+        onClick={() => setAudio(level === 0 ? { muted: false, volume: audio.volume || 1 } : { muted: true })}
+        className="ring-row flex h-8 w-8 flex-none items-center justify-center rounded-full"
+      >
+        <Icon size={18} aria-hidden />
+      </button>
+    </div>
   );
 }
 

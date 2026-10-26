@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { OverlayLayer } from "@/components/overlay-layer";
-import { ChatToast, LatencyBreakdown, MenuHint, MenuPanel, PresenceToast, MenuRow, setBreakdown, setPill, StatsPill, useMenu } from "@/components/play-ui";
+import { AudioWidget, ChatToast, LatencyBreakdown, MenuHint, MenuPanel, PresenceToast, useAudioPref, MenuRow, setBreakdown, setPill, StatsPill, useMenu } from "@/components/play-ui";
 import { statusText } from "@/components/guest-join";
 import { StreamVideo } from "@/components/stream-video";
 import { TouchPad } from "@/components/touch-pad";
+import { effectiveVolume } from "@/lib/audio-pref";
 import { SYSTEMS } from "@/lib/emulator/systems";
 import type { GuestSession, GuestSnapshot } from "@/lib/guest/session";
 import { estimateLatency, perFrameMs } from "@/lib/net/latency";
@@ -23,6 +24,7 @@ export function GuestPlay({
 }) {
   const menu = useMenu();
   const menuOpen = menu.open;
+  const audio = useAudioPref();
   const pillRef = useRef<HTMLSpanElement>(null);
   const breakdownRef = useRef<HTMLDListElement>(null);
   const [details, setDetails] = useState(false);
@@ -78,6 +80,7 @@ export function GuestPlay({
               ref={videoRef}
               stream={snap.stream}
               soundAtTop={touch}
+              volume={effectiveVolume(audio)}
               className={`h-full w-full object-contain ${touch ? "portrait:h-auto portrait:max-h-[55%]" : ""} ${menuOpen ? "opacity-55" : ""}`}
             />
             <OverlayLayer
@@ -98,6 +101,8 @@ export function GuestPlay({
           {playing ? `Player ${snap.slot}` : snap.claiming ? "Joining" : "Watching"}
         </span>
         <MenuHint show={!menuOpen && !touch} />
+        {/* Touch screens have the pad in that corner, and volume buttons. */}
+        {snap.stream && !touch && <AudioWidget />}
         {!menu.shown && (
           <>
             <ChatToast lines={snap.chat} />

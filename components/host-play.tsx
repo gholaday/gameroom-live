@@ -4,9 +4,10 @@ import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } fr
 import { useRouter } from "next/navigation";
 import { OverlayLayer } from "@/components/overlay-layer";
 import { SaveSlots } from "@/components/save-slots";
-import { ChatToast, MenuHint, PresenceToast, MenuNote, MenuPanel, MenuRow, setPill, StatsPill, useMenu } from "@/components/play-ui";
+import { AudioWidget, ChatToast, MenuHint, PresenceToast, useAudioPref, MenuNote, MenuPanel, MenuRow, setPill, StatsPill, useMenu } from "@/components/play-ui";
 import { hostSession } from "@/lib/host/session";
 import type { ChatLine } from "@/lib/net/protocol";
+import { effectiveVolume } from "@/lib/audio-pref";
 import { useGameMode, useInitialFocus, useNavAction } from "@/lib/nav/react";
 import { Check, Copy } from "lucide-react";
 import { useOrigin } from "@/lib/use-origin";
@@ -63,6 +64,9 @@ export function HostPlay() {
   }, [snap.running]);
   useEffect(() => () => hostSession.pause(), []);
 
+  const audio = useAudioPref();
+  useEffect(() => hostSession.setVolume(effectiveVolume(audio)), [audio]);
+
   // Pill: worst guest RTT and outbound fps, once a second, straight to the DOM.
   useEffect(() => {
     if (!snap.running) return;
@@ -90,6 +94,7 @@ export function HostPlay() {
         )}
         {!ready && <ContinueButton title={snap.rom.game.title} onClick={() => setReady(true)} />}
         <StatsPill ref={pillRef} />
+        {snap.running && <AudioWidget />}
         {!menu.shown && (
           <>
             <ChatToast lines={snap.chat} />

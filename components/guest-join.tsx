@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Gamepad2 } from "lucide-react";
 import { ControlsPanel } from "@/components/controls-panel";
 import { GuestPlay } from "@/components/guest-play";
-import { NameField } from "@/components/players-panel";
+import { EditableName } from "@/components/play-ui";
 import { StreamVideo } from "@/components/stream-video";
 import { Avatar, Dot, EmptySlot, Footer, Hint, type PlayerSlot } from "@/components/ui";
 import { GuestSession, type GuestSnapshot, type InputMode } from "@/lib/guest/session";
@@ -20,7 +20,7 @@ export function GuestJoin({ code }: { code: string }) {
   const snap = useSyncExternalStore(session.subscribe, session.getSnapshot, session.getSnapshot);
   const [view, setView] = useState<"lobby" | "play">("lobby");
   const [showControls, setShowControls] = useState(false);
-  const [name, setNameValue] = useState(() => (typeof window === "undefined" ? "" : getName("")));
+  const [name, setNameValue] = useState(() => (typeof window === "undefined" ? "Guest" : getName("Guest")));
   const rttRef = useRef<HTMLSpanElement>(null);
 
   useEffect(() => {
@@ -71,6 +71,14 @@ export function GuestJoin({ code }: { code: string }) {
             {connected ? `${snap.hostName} invited you to play` : `Room ${code}`}
           </span>
           <h1 className="text-[34px] font-extrabold">{snap.game?.title ?? "Waiting for the host"}</h1>
+          <EditableName
+            name={name}
+            className="w-[240px] justify-center text-lg"
+            onSave={(n) => {
+              session.rename(n);
+              setNameValue(getName("Guest"));
+            }}
+          />
         </div>
 
         <div className="relative flex aspect-[8/7] w-full max-w-[520px] items-center justify-center overflow-hidden rounded-card bg-text text-[13px] text-[#C9C9CF] shadow-stream">
@@ -135,9 +143,6 @@ export function GuestJoin({ code }: { code: string }) {
             <ControlsPanel reserved={GUEST_RESERVED} />
           </div>
         )}
-        <div className="w-full max-w-[260px]">
-          <NameField label="Your name" value={name} onChange={setNameValue} onCommit={() => session.rename(name)} />
-        </div>
       </main>
 
       <Footer

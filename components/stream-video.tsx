@@ -9,8 +9,8 @@ import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "re
  */
 export const StreamVideo = forwardRef<
   HTMLVideoElement,
-  { stream: MediaStream | null; muted?: boolean; className?: string; soundAtTop?: boolean }
->(function StreamVideo({ stream, muted = false, className = "", soundAtTop = false }, ref) {
+  { stream: MediaStream | null; muted?: boolean; volume?: number; className?: string; soundAtTop?: boolean }
+>(function StreamVideo({ stream, muted = false, volume = 1, className = "", soundAtTop = false }, ref) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [needsSound, setNeedsSound] = useState(false);
   useImperativeHandle(ref, () => videoRef.current!);
@@ -27,6 +27,10 @@ export const StreamVideo = forwardRef<
       void video.play().catch(() => {});
     });
   }, [stream, muted]);
+
+  useEffect(() => {
+    if (videoRef.current) videoRef.current.volume = volume;
+  }, [volume]);
 
   const enableSound = () => {
     const video = videoRef.current;
@@ -51,7 +55,7 @@ export const StreamVideo = forwardRef<
           type="button"
           onClick={enableSound}
           data-nav="skip"
-          className={`absolute right-6 z-10 rounded-full ${soundAtTop ? "top-[68px]" : "bottom-5"} bg-white/92 px-3.5 py-[7px] text-[13px] font-extrabold text-text`}
+          className={`absolute right-6 z-10 rounded-full ${soundAtTop ? "top-[68px]" : "bottom-16"} bg-white/92 px-3.5 py-[7px] text-[13px] font-extrabold text-text`}
         >
           Click for sound
         </button>

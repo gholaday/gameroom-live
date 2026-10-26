@@ -108,6 +108,8 @@ class HostSession {
     presence: [],
   };
   private chatId = 0;
+  /** The host's own speaker level, 0 to 1. The stream to guests isn't affected. */
+  private volume = 1;
   private presenceId = 0;
   private readonly listeners = new Set<() => void>();
   private peer: Peer | null = null;
@@ -247,6 +249,7 @@ class HostSession {
     canvas.height = size.height;
     pinCanvasSize(canvas, size.width, size.height);
     const tap = (this.tap = installAudioTap());
+    tap.setLocalVolume(this.volume);
 
     const { Nostalgist } = await import("nostalgist");
     const emu = await Nostalgist.launch({
@@ -383,6 +386,12 @@ class HostSession {
     } catch {
       return null;
     }
+  }
+
+  /** The host's own speaker level, 0 to 1. Guests hear the stream unchanged. */
+  setVolume(volume: number) {
+    this.volume = volume;
+    this.tap?.setLocalVolume(volume);
   }
 
   pause() {
