@@ -11,6 +11,7 @@ import {
   FolderOpen,
   Gamepad2,
   Play,
+  Power,
   Plus,
   RefreshCw,
   Save,
@@ -104,7 +105,6 @@ export function HostHome() {
     copyRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
   };
   const endSession = () => {
-    if (view !== "library") return setView("library");
     hostSession.end();
     void hostSession.open();
     setNote("Session ended. A new room is open.");
@@ -113,7 +113,8 @@ export function HostHome() {
 
   useNavAction("start", start);
   useNavAction("x", focusInvite);
-  useNavAction("back", endSession);
+  // B backs out of an option view first; on the library it ends the session.
+  useNavAction("back", () => (view === "library" ? endSession() : setView("library")));
 
   const copy = async () => {
     if (!snap.code) return;
@@ -302,6 +303,8 @@ export function HostHome() {
             insertKey={snap.rom?.file.name ?? ""}
             label={snap.running ? "Playing now" : snap.resuming ? "Continues where you left off" : "Ready"}
             onStart={start}
+            onEnd={endSession}
+            canEnd={!!game || snap.players.length > 1 || snap.spectators > 0}
           />
 
           <section aria-label="Invite friends" className="flex flex-col gap-3 rounded-card bg-surface p-4 shadow-soft">
@@ -408,11 +411,15 @@ function ConsoleDeck({
   insertKey,
   label,
   onStart,
+  onEnd,
+  canEnd,
 }: {
   game: Game | null;
   insertKey: string;
   label: string;
   onStart: () => void;
+  onEnd: () => void;
+  canEnd: boolean;
 }) {
   const size = game ? cartSize(game.systemId) : null;
   return (
@@ -454,11 +461,15 @@ function ConsoleDeck({
           </div>
         </div>
         <div className="flex items-center justify-between gap-4">
-          <span aria-hidden className="flex gap-1.5">
-            {[0, 1, 2, 3, 4].map((i) => (
-              <span key={i} className="h-6 w-1.5 rounded-full bg-black/10" />
-            ))}
-          </span>
+          <button
+            type="button"
+            onClick={onEnd}
+            disabled={!canEnd}
+            className="ring-row inline-flex min-h-10 items-center gap-1.5 rounded-full bg-black/5 px-4 text-[13px] font-extrabold text-text transition-colors hover:bg-danger hover:text-white disabled:cursor-default disabled:bg-transparent disabled:text-slot-empty"
+          >
+            <Power size={15} aria-hidden />
+            End session
+          </button>
           <button
             type="button"
             onClick={onStart}
