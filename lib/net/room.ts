@@ -6,7 +6,7 @@ export function newRoomCode() {
   return Array.from(bytes, (b) => ALPHABET[b % ALPHABET.length]).join("");
 }
 
-/** PeerJS ids are global on the public broker, so namespace ours. */
+/** Namespaced for the public broker; our Worker also routes by the code in it. */
 export const peerIdFor = (code: string) => `gameroom-live-${code.toUpperCase()}`;
 
 /** Spectators are unlimited by design, but each guest costs the host one encode. */

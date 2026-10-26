@@ -10,7 +10,9 @@
     "cores": "node scripts/fetch-cores.mjs",
     "predev": "node scripts/fetch-cores.mjs",
     "prebuild": "node scripts/fetch-cores.mjs",
-    "test": "vitest run"
+    "test": "vitest run",
+    "signaling:dev": "npm --prefix signaling run dev",
+    "signaling:deploy": "npm --prefix signaling run deploy"
   },
   "dependencies": {
     "lucide-react": "^1.61.0",

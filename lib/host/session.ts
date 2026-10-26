@@ -11,6 +11,7 @@ import { gameTitle } from "@/lib/library/entries";
 import { preferCodec } from "@/lib/net/codecs";
 import { perFrameMs } from "@/lib/net/latency";
 import { fetchIceConfig, PeerLink } from "@/lib/net/link";
+import { signalingOptions } from "@/lib/net/signaling";
 import { HOST_PEER, stampPeer } from "@/lib/net/overlay";
 import {
   decodeInput,
@@ -131,7 +132,7 @@ class HostSession {
     let code = saved ?? newRoomCode();
     let sameCodeTries = saved ? 6 : 0;
     for (let attempt = 0; attempt < 12; attempt++) {
-      const peer = new Peer(peerIdFor(code), { config, debug: 0 });
+      const peer = new Peer(peerIdFor(code), { config, debug: 0, ...signalingOptions() });
       const result = await new Promise<"open" | "taken" | Error>((resolve) => {
         peer.once("open", () => resolve("open"));
         peer.once("error", (err) =>

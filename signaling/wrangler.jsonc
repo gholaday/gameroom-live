@@ -1,0 +1,17 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "gameroom-signaling",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-01",
+  "durable_objects": {
+    "bindings": [{ "name": "ROOMS", "class_name": "SignalRoom" }]
+  },
+  // SQLite-backed classes work on the Workers free plan. We store nothing;
+  // sockets live in memory and survive hibernation via their attachments.
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["SignalRoom"] }],
+  "vars": {
+    // Override per environment, e.g. in the dashboard or with --var.
+    "ALLOWED_ORIGINS": "http://localhost:3000,http://localhost:3001"
+  },
+  "observability": { "enabled": true }
+}

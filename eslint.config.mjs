@@ -14,6 +14,8 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // Downloaded emulator cores.
     "public/cores/**",
+    // Cloudflare Worker, its own package with its own tsconfig.
+    "signaling/**",
   ]),
 ]);
 
