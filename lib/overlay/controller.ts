@@ -34,8 +34,29 @@ export function peerColor(peer: OverlayPeer | undefined, id: number) {
   return SPECTATOR_COLORS[id % SPECTATOR_COLORS.length];
 }
 
-type Hand = { el: HTMLElement; x: number; y: number; tx: number; ty: number; flags: number; seen: number };
+type Hand = {
+  el: HTMLElement;
+  x: number;
+  y: number;
+  tx: number;
+  ty: number;
+  flags: number;
+  seen: number;
+  /** Shows the pencil instead of the hand, while that person is drawing. */
+  pencil: boolean;
+};
 type Stroke = { color: string; pts: number[]; last: number };
+
+const PENCIL_PATH =
+  "M21.17 6.81a1 1 0 0 0-3.98-3.98L3.84 16.17a2 2 0 0 0-.5.83l-1.32 4.35a.5.5 0 0 0 .62.62l4.35-1.32a2 2 0 0 0 .83-.5z";
+const PENCIL_SVG = `<svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor" stroke="#fff" stroke-width="1.5" stroke-linejoin="round" style="display:none"><path d="${PENCIL_PATH}"/></svg>`;
+/** Your own pointer while you draw. The hotspot is the pencil tip. */
+const PENCIL_CURSOR = `url("data:image/svg+xml,${encodeURIComponent(
+  `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="#2B2B2E" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"><path d="${PENCIL_PATH}"/></svg>`,
+)}") 2 22, crosshair`;
+/** Where the point is inside each glyph's box: the fingertip, or the pencil tip. */
+const HAND_TIP = [9, 2] as const;
+const PENCIL_TIP = [3, 25] as const;
 
 const HAND_SVG =
   '<svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"><path d="M9 11V4.5a1.5 1.5 0 0 1 3 0V10h.5V3.5a1.5 1.5 0 0 1 3 0V10h.5V5a1.5 1.5 0 0 1 3 0v8.5c0 4-2.5 7.5-7 7.5-3 0-4.5-1.5-6-4l-2.6-4.4a1.6 1.6 0 0 1 2.6-1.8L9 13z"/></svg>';
@@ -105,6 +126,12 @@ export class OverlayController {
     hand.ty = c.y;
     hand.flags = c.flags;
     hand.seen = performance.now();
+    const pencil = !!(c.flags & CURSOR_PRESSED);
+    if (pencil !== hand.pencil) {
+      hand.pencil = pencil;
+      (hand.el.children[0] as HTMLElement).style.display = pencil ? "none" : "";
+      (hand.el.children[1] as HTMLElement).style.display = pencil ? "" : "none";
+    }
     this.wake();
   }
 
@@ -155,6 +182,7 @@ export class OverlayController {
     this.toLocal(e, this.pending);
     this.local.flags = CURSOR_VISIBLE | CURSOR_PRESSED;
     this.cursorDirty = true;
+    this.root.style.cursor = PENCIL_CURSOR;
     this.wake();
   };
 
@@ -162,6 +190,7 @@ export class OverlayController {
     if (!this.drawing) return;
     this.flushInk();
     this.drawing = false;
+    this.root.style.cursor = "";
     this.local.flags = CURSOR_VISIBLE;
     this.cursorDirty = true;
     this.wake();
@@ -207,9 +236,9 @@ export class OverlayController {
     const el = document.createElement("div");
     el.style.cssText =
       "position:absolute;left:0;top:0;pointer-events:none;will-change:transform;display:flex;align-items:flex-start;gap:2px;filter:drop-shadow(0 2px 3px rgba(0,0,0,.35))";
-    el.innerHTML = `${HAND_SVG}<span style="margin-top:22px;padding:2px 8px;border-radius:999px;color:#fff;font:800 12px var(--font-nunito),system-ui;white-space:nowrap"></span>`;
+    el.innerHTML = `${HAND_SVG}${PENCIL_SVG}<span style="margin-top:22px;padding:2px 8px;border-radius:999px;color:#fff;font:800 12px var(--font-nunito),system-ui;white-space:nowrap"></span>`;
     this.root.append(el);
-    const hand = { el, x, y, tx: x, ty: y, flags: 0, seen: 0 };
+    const hand = { el, x, y, tx: x, ty: y, flags: 0, seen: 0, pencil: false };
     this.styleHand(hand, id);
     return hand;
   }
@@ -258,9 +287,9 @@ export class OverlayController {
       const visible = hand.flags & CURSOR_VISIBLE && now - hand.seen < CURSOR_IDLE_MS;
       hand.x += (hand.tx - hand.x) * 0.45;
       hand.y += (hand.ty - hand.y) * 0.45;
-      const pressed = hand.flags & CURSOR_PRESSED ? 0.85 : 1;
-      // The fingertip, not the box corner, marks the point.
-      hand.el.style.transform = `translate3d(${hand.x * w - 9}px, ${hand.y * h - 2}px, 0) scale(${pressed})`;
+      // The fingertip or pencil tip, not the box corner, marks the point.
+      const [ox, oy] = hand.pencil ? PENCIL_TIP : HAND_TIP;
+      hand.el.style.transform = `translate3d(${hand.x * w - ox}px, ${hand.y * h - oy}px, 0)`;
       hand.el.style.opacity = visible ? "1" : "0";
       if (visible && (Math.abs(hand.tx - hand.x) > 0.0005 || Math.abs(hand.ty - hand.y) > 0.0005)) alive = true;
       if (visible) alive ||= now - hand.seen < CURSOR_IDLE_MS;
