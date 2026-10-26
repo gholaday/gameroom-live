@@ -30,7 +30,7 @@ guest input to player 2, live RTT, and spectators.
 - **Spectators:** every guest gets the stream on connect. Claiming a slot is
   optional, so in a one-player game everyone else watches. Up to 7 guests
   (`MAX_GUESTS`); each one costs the host an encode.
-- **TURN:** `/api/ice` mints Cloudflare TURN credentials from
+- **TURN (removed later: STUN only, no `/api/ice`):** `/api/ice` mints Cloudflare TURN credentials from
   `CLOUDFLARE_TURN_KEY_ID` and `CLOUDFLARE_TURN_API_TOKEN` (see
   `.env.example`), and falls back to STUN only.
 

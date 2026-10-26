@@ -13,7 +13,7 @@ npm run dev   # also downloads emulator cores into public/cores
 npm test
 ```
 
-Optional TURN: copy `.env.example` to `.env.local` and fill in Cloudflare TURN credentials.
+Optional: copy `.env.example` to `.env.local` to point signaling at your own Worker (see `signaling/README.md`). There is no TURN relay: STUN only, by choice.
 Dev shortcut: `/?rom=<file in /roms>` loads a test ROM on the host home.
 
 ## Routes

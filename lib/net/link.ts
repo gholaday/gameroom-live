@@ -148,11 +148,9 @@ export class PeerLink {
   }
 }
 
-/** Fetches ICE servers (TURN when configured) from our API. */
-export async function fetchIceConfig(): Promise<RTCConfiguration> {
-  try {
-    const res = await fetch("/api/ice");
-    if (res.ok) return (await res.json()) as RTCConfiguration;
-  } catch {}
-  return { iceServers: [{ urls: "stun:stun.cloudflare.com:3478" }] };
-}
+/**
+ * STUN only, no TURN relay (a deliberate choice for a friends-only app):
+ * players behind strict NAT won't connect. A constant, so connecting
+ * doesn't wait on an API round trip first.
+ */
+export const ICE_CONFIG: RTCConfiguration = { iceServers: [{ urls: "stun:stun.cloudflare.com:3478" }] };

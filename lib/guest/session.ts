@@ -2,7 +2,7 @@ import type { Peer } from "peerjs";
 import { getName, setName, tabToken } from "@/lib/identity";
 import { keyMask, padMasksFor } from "@/lib/input/controls";
 import { readGamepad } from "@/lib/input/retropad";
-import { fetchIceConfig, PeerLink } from "@/lib/net/link";
+import { ICE_CONFIG, PeerLink } from "@/lib/net/link";
 import { guestPeerId, signalingOptions } from "@/lib/net/signaling";
 import {
   encodeInput,
@@ -108,7 +108,7 @@ export class GuestSession {
       (window as unknown as { __gameroomGuest: GuestSession }).__gameroomGuest = this;
     }
     const { Peer } = await import("peerjs");
-    const config = await fetchIceConfig();
+    const config = ICE_CONFIG;
     if (gen !== this.gen) return;
     if (!this.droppedAt) this.set({ status: "connecting", error: null });
     const peer = new Peer(guestPeerId(this.code), { config, debug: 0, ...signalingOptions() });

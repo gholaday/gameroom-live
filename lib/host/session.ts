@@ -14,7 +14,7 @@ import { getControls, padMapFor } from "@/lib/input/controls";
 import { gameForFile } from "@/lib/library/games";
 import { preferCodec } from "@/lib/net/codecs";
 import { perFrameMs } from "@/lib/net/latency";
-import { fetchIceConfig, PeerLink } from "@/lib/net/link";
+import { ICE_CONFIG, PeerLink } from "@/lib/net/link";
 import { signalingOptions } from "@/lib/net/signaling";
 import { HOST_PEER, stampPeer } from "@/lib/net/overlay";
 import {
@@ -137,7 +137,7 @@ class HostSession {
     if (this.peer || this.snapshot.status === "opening") return;
     this.set({ status: "opening", error: null, hostName: getName("Host") });
     const { Peer } = await import("peerjs");
-    const config = await fetchIceConfig();
+    const config = ICE_CONFIG;
 
     // After a refresh, reclaim the same code so guests reconnect to it. The
     // broker can take a moment to free the old id, so retry it before giving up.
