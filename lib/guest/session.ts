@@ -31,7 +31,11 @@ const HEARTBEAT_MS = 1000 / 60;
 /** How long to keep trying after the host drops before calling it over. */
 const HOST_GRACE_MS = 30_000;
 const RETRY_MS = 2000;
-const CONNECT_TIMEOUT_MS = 8000;
+/**
+ * A backstop: ICE reports "failed" by itself, and a slow path (a phone on the
+ * host's Wi-Fi, say) can still be checking well past 8 s.
+ */
+const CONNECT_TIMEOUT_MS = 25_000;
 const SIGNALING_TIMEOUT_MS = 10_000;
 
 export type InputMode = "gamepad" | "keyboard" | "touch";
