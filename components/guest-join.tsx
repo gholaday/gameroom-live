@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { Gamepad2 } from "lucide-react";
+import { Eye, Gamepad2, Hand, Keyboard, Plus, Users } from "lucide-react";
 import { ControlsPanel } from "@/components/controls-panel";
 import { GuestPlay } from "@/components/guest-play";
 import { EditableName } from "@/components/play-ui";
@@ -9,17 +9,32 @@ import { StreamVideo } from "@/components/stream-video";
 import { Avatar, Dot, EmptySlot, Footer, Hint, type PlayerSlot } from "@/components/ui";
 import { GuestSession, type GuestSnapshot, type InputMode } from "@/lib/guest/session";
 import { getName } from "@/lib/identity";
-import { useAnyGamepadButton, useInitialFocus, useNavAction } from "@/lib/nav/react";
+import { useInitialFocus, useNavAction } from "@/lib/nav/react";
 
 const SLOTS: PlayerSlot[] = [1, 2, 3, 4];
 /** Esc opens the game menu. */
 const GUEST_RESERVED = new Set(["Escape"]);
+
+const MODES: { mode: InputMode; label: string; Icon: typeof Gamepad2 }[] = [
+  { mode: "gamepad", label: "Controller", Icon: Gamepad2 },
+  { mode: "keyboard", label: "Keyboard", Icon: Keyboard },
+  { mode: "touch", label: "Touch", Icon: Hand },
+];
+
+/** A controller if one is plugged in, touch on a phone, else the keyboard. */
+function likelyMode(): InputMode {
+  if (navigator.getGamepads().some((p) => p?.connected)) return "gamepad";
+  if (window.matchMedia("(pointer: coarse)").matches) return "touch";
+  return "keyboard";
+}
 
 export function GuestJoin({ code }: { code: string }) {
   const [session] = useState(() => new GuestSession(code));
   const snap = useSyncExternalStore(session.subscribe, session.getSnapshot, session.getSnapshot);
   const [view, setView] = useState<"lobby" | "play">("lobby");
   const [showControls, setShowControls] = useState(false);
+  // The spot whose join picker is open.
+  const [picking, setPicking] = useState<PlayerSlot | null>(null);
   const [name, setNameValue] = useState(() => (typeof window === "undefined" ? "Guest" : getName("Guest")));
   const rttRef = useRef<HTMLSpanElement>(null);
 
@@ -42,12 +57,19 @@ export function GuestJoin({ code }: { code: string }) {
   const connected = snap.status === "connected";
   // Before the host starts a game we don't know the system; assume it has room.
   const maxPlayers = snap.game?.maxPlayers ?? SLOTS.length;
-  const taken = new Set(snap.players.map((p) => p.slot));
-  // Every controller is in use: watching is the only way in until someone leaves.
-  const full = !snap.slot && SLOTS.slice(0, maxPlayers).every((s) => taken.has(s));
-  const canPlay = connected && maxPlayers > 1 && !full;
-  const play = (mode: InputMode) => {
-    session.claim(mode);
+  const slots = SLOTS.slice(0, maxPlayers);
+  const solo = maxPlayers === 1;
+  const owner = (slot: PlayerSlot) => snap.players.find((p) => p.slot === slot);
+  const open = (slot: PlayerSlot) => !owner(slot) && slot !== snap.slot;
+  // Every controller is in use: watching is the way in until someone leaves.
+  const full = !solo && !snap.slot && !slots.some(open);
+  const canPlay = connected && !solo && !full;
+  // A spot taken while its picker is open closes the picker.
+  const pick = picking && (open(picking) || picking === snap.slot) && canPlay ? picking : null;
+
+  const join = (slot: PlayerSlot, mode: InputMode) => {
+    session.claim(mode, slot);
+    setPicking(null);
     setView("play");
   };
   const watch = () => {
@@ -56,23 +78,23 @@ export function GuestJoin({ code }: { code: string }) {
   };
 
   useInitialFocus(view === "lobby");
-  useAnyGamepadButton(() => play("gamepad"), canPlay && view === "lobby");
-  useNavAction("back", watch, connected && view === "lobby");
+  useNavAction("back", watch, connected && view === "lobby" && !pick);
+  useNavAction("back", () => setPicking(null), view === "lobby" && !!pick);
 
   if (view === "play") {
     return <GuestPlay session={session} snap={snap} onLobby={() => setView("lobby")} />;
   }
 
-  const mySlot = snap.slot || (SLOTS.find((s) => !taken.has(s)) ?? 0);
+  // The first open spot (or your own) takes focus, so a controller's A opens its picker.
+  const focusSlot = snap.slot || slots.find(open) || 0;
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <main className="flex flex-1 flex-col items-center gap-[30px] px-4 pt-11 pb-6">
-        <div className="flex flex-col items-center gap-1 text-center">
-          <span className="font-bold text-text-muted">
-            {connected ? `${snap.hostName} invited you to play` : `Room ${code}`}
-          </span>
-          <h1 className="text-[34px] font-extrabold">{snap.game?.title ?? "Waiting for the host"}</h1>
+    <div className="flex h-dvh flex-col">
+      <main className="scrollbar flex min-h-0 flex-1 flex-col items-center gap-5 overflow-y-auto px-4 pt-8 pb-4">
+        <div className="flex flex-none flex-col items-center gap-1 text-center">
+          <h1 className="text-[clamp(26px,4vh,34px)] leading-tight font-extrabold">
+            {snap.game?.title ?? "Waiting for the host"}
+          </h1>
           <EditableName
             name={name}
             className="w-[240px] justify-center text-lg"
@@ -83,67 +105,79 @@ export function GuestJoin({ code }: { code: string }) {
           />
         </div>
 
-        <div className="relative flex aspect-[8/7] w-full max-w-[520px] items-center justify-center overflow-hidden rounded-card bg-text text-[13px] text-[#C9C9CF] shadow-stream">
-          {snap.stream ? (
-            <StreamVideo stream={snap.stream} muted className="h-full w-full object-contain" />
-          ) : (
-            <span>{statusText(snap.status, snap.error)}</span>
-          )}
-          {snap.stream && (
-            <span className="absolute top-3.5 left-3.5 inline-flex items-center gap-1.5 rounded-full bg-white/92 px-3 py-[5px] text-xs font-extrabold text-text">
-              <Dot className="bg-live" size={8} />
-              Live
+        {/* The picture takes whatever height is left, at 8:7. */}
+        <div className="flex min-h-[200px] w-full flex-1 items-center justify-center [container-type:size]">
+          <div
+            style={{ width: "min(560px, 100cqw, calc(100cqh * 8 / 7))" }}
+            className="relative flex aspect-[8/7] items-center justify-center overflow-hidden rounded-card bg-text text-[13px] text-[#C9C9CF] shadow-stream"
+          >
+            {snap.stream ? (
+              <StreamVideo stream={snap.stream} muted className="h-full w-full object-contain" />
+            ) : (
+              <span className="px-4 text-center">{statusText(snap.status, snap.error)}</span>
+            )}
+            {snap.stream && (
+              <span className="absolute top-3.5 left-3.5 inline-flex items-center gap-1.5 rounded-full bg-white/92 px-3 py-[5px] text-xs font-extrabold text-text">
+                <Dot className="bg-live" size={8} />
+                Live
+              </span>
+            )}
+          </div>
+        </div>
+
+        {connected && (full || solo) && (
+          <p
+            role="status"
+            className="fade-in inline-flex flex-none items-center gap-2.5 rounded-full bg-surface py-2 pr-5 pl-3 text-sm font-extrabold shadow-soft"
+          >
+            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-bg text-text-muted">
+              <Users size={16} aria-hidden />
             </span>
-          )}
+            {solo ? "This is a 1-player game." : `All ${maxPlayers} player spots are filled.`}
+            <span className="font-bold text-text-muted">You can still watch.</span>
+          </p>
+        )}
+
+        <div className="flex flex-none flex-wrap justify-center gap-x-[30px] gap-y-4">
+          {slots.map((slot) => (
+            <Slot
+              key={slot}
+              slot={slot}
+              owner={owner(slot)?.name}
+              mine={slot === snap.slot}
+              joinable={canPlay && (open(slot) || slot === snap.slot)}
+              dim={full}
+              focusDefault={slot === focusSlot}
+              picking={pick === slot}
+              onPick={() => setPicking(pick === slot ? null : slot)}
+              onClose={() => setPicking(null)}
+              onJoin={(mode) => join(slot, mode)}
+            />
+          ))}
         </div>
 
-        <div className="flex flex-wrap justify-center gap-[34px]">
-          {SLOTS.slice(0, maxPlayers).map((slot) => {
-            if (slot === mySlot && canPlay) {
-              return (
-                <GuestSlot key={slot} slot={slot} claimed={!!snap.slot} claiming={snap.claiming} onJoin={() => play("gamepad")} />
-              );
-            }
-            const p = snap.players.find((pl) => pl.slot === slot);
-            return (
-              <div key={slot} className="flex w-24 flex-col items-center gap-2.5">
-                {p ? <Avatar slot={slot} name={p.name} size={84} /> : <EmptySlot size={84} />}
-                <span className={`text-sm ${p ? "font-extrabold" : "font-bold text-text-muted"}`}>
-                  {p ? p.name : "Open"}
-                </span>
-                {p && <span className="-mt-2 text-xs font-semibold text-text-muted">Player {slot}</span>}
-              </div>
-            );
-          })}
-        </div>
-
-        <div className="flex flex-wrap justify-center gap-3">
-          {canPlay || (!connected && maxPlayers > 1) ? (
-            <>
-              <PillButton disabled={!connected} onClick={() => play("touch")}>
-                Touch controls
-              </PillButton>
-              <PillButton disabled={!connected} onClick={() => play("keyboard")}>
-                Keyboard
-              </PillButton>
-            </>
-          ) : (
-            <p className="self-center text-sm font-bold text-text-muted">
-              {maxPlayers > 1 ? "Every player spot is taken. You can watch." : "This is a 1-player game. You can watch."}
-            </p>
-          )}
-          <PillButton onClick={() => setShowControls((v) => !v)}>{showControls ? "Hide controls" : "Controls"}</PillButton>
+        <div className="flex flex-none flex-wrap justify-center gap-3">
           <button
             type="button"
             disabled={!connected}
             onClick={watch}
-            className="ring-row min-h-12 rounded-full px-[18px] text-sm font-extrabold text-primary-text disabled:opacity-50"
+            className={`ring-row inline-flex min-h-12 items-center gap-2 rounded-full px-[22px] text-sm font-extrabold disabled:opacity-50 ${
+              full || solo ? "bg-primary-text text-white shadow-soft" : "bg-surface text-text shadow-soft"
+            }`}
           >
-            Just watch
+            <Eye size={18} aria-hidden />
+            {snap.slot ? "Watch instead" : "Watch"}
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowControls((v) => !v)}
+            className="ring-row min-h-12 rounded-full px-[18px] text-sm font-extrabold text-primary-text"
+          >
+            {showControls ? "Hide controls" : "Controls"}
           </button>
         </div>
         {showControls && (
-          <div className="w-full max-w-[720px]">
+          <div className="w-full max-w-[720px] flex-none">
             <ControlsPanel reserved={GUEST_RESERVED} />
           </div>
         )}
@@ -159,10 +193,17 @@ export function GuestJoin({ code }: { code: string }) {
           </span>
         }
         hints={
-          <>
-            {canPlay && <Hint button="A">Join</Hint>}
-            <Hint button="B">Just watch</Hint>
-          </>
+          pick ? (
+            <>
+              <Hint button="A">Select</Hint>
+              <Hint button="B">Back</Hint>
+            </>
+          ) : (
+            <>
+              {canPlay && <Hint button="A">Pick a spot</Hint>}
+              <Hint button="B">Watch</Hint>
+            </>
+          )
         }
       />
     </div>
@@ -178,51 +219,131 @@ export function statusText(status: GuestSnapshot["status"], error: string | null
   return "Waiting for the host to start a game";
 }
 
-function GuestSlot({
+/** One player spot. An open one (or your own) opens a picker above it to choose controls and join. */
+function Slot({
   slot,
-  claimed,
-  claiming,
+  owner,
+  mine,
+  joinable,
+  dim,
+  focusDefault,
+  picking,
+  onPick,
+  onClose,
   onJoin,
 }: {
   slot: PlayerSlot;
-  claimed: boolean;
-  claiming: boolean;
-  onJoin: () => void;
+  owner?: string;
+  mine: boolean;
+  joinable: boolean;
+  dim: boolean;
+  focusDefault: boolean;
+  picking: boolean;
+  onPick: () => void;
+  onClose: () => void;
+  onJoin: (mode: InputMode) => void;
 }) {
+  const label = mine ? "You" : (owner ?? "Open");
+  const face = owner || mine ? <Avatar slot={slot} name={mine ? "You" : owner!} size={76} /> : null;
+
   return (
-    <div className="flex w-[120px] flex-col items-center gap-2.5">
-      <button
-        type="button"
-        onClick={onJoin}
-        data-nav-default=""
-        aria-label={claimed ? `You are Player ${slot}` : "Join as a player"}
-        className="ring-tile rounded-full"
-      >
-        {claimed ? (
-          <Avatar slot={slot} name="You" size={84} />
-        ) : (
-          <span className="slot-pulse box-border flex h-[84px] w-[84px] items-center justify-center rounded-full border-4 border-focus bg-surface text-primary-text">
-            <Gamepad2 size={34} strokeWidth={2} aria-hidden />
-          </span>
-        )}
-      </button>
-      <span className="text-sm font-extrabold text-primary-text">You</span>
-      <span role="status" className="-mt-2 text-center text-xs font-bold text-primary-text">
-        {claimed ? `Player ${slot}` : claiming ? "Joining" : "Press any button"}
+    <div className={`relative flex w-24 flex-col items-center gap-2 transition-opacity ${dim ? "opacity-80" : ""}`}>
+      {joinable ? (
+        <button
+          type="button"
+          onClick={onPick}
+          {...(focusDefault ? { "data-nav-default": "" } : {})}
+          aria-expanded={picking}
+          aria-label={mine ? `You are Player ${slot}. Change controls` : `Join as Player ${slot}`}
+          className="ring-tile group/slot rounded-full"
+        >
+          {face ?? (
+            <span
+              className={`box-border flex h-[76px] w-[76px] items-center justify-center rounded-full border-[3px] border-dashed transition-[border-color,background-color,color,transform] duration-200 ease-out group-hover/slot:scale-105 group-hover/slot:border-solid group-hover/slot:border-focus group-hover/slot:bg-surface group-hover/slot:text-primary-text ${
+                picking ? "scale-105 border-solid border-focus bg-surface text-primary-text" : "border-slot-empty text-slot-empty"
+              }`}
+            >
+              <Plus size={30} strokeWidth={2.5} aria-hidden />
+            </span>
+          )}
+        </button>
+      ) : (
+        (face ?? <EmptySlot size={76} />)
+      )}
+      <span className={`max-w-full truncate text-sm ${owner || mine ? "font-extrabold" : "font-bold text-text-muted"}`}>
+        {label}
       </span>
+      <span className="-mt-2 text-xs font-semibold text-text-muted">Player {slot}</span>
+      {picking && <JoinPicker slot={slot} mine={mine} onClose={onClose} onJoin={onJoin} />}
     </div>
   );
 }
 
-function PillButton({ children, onClick, disabled }: { children: string; onClick: () => void; disabled?: boolean }) {
+/** Floats above a spot: pick a control type, then join. */
+function JoinPicker({
+  slot,
+  mine,
+  onClose,
+  onJoin,
+}: {
+  slot: PlayerSlot;
+  mine: boolean;
+  onClose: () => void;
+  onJoin: (mode: InputMode) => void;
+}) {
+  const [mode, setMode] = useState<InputMode>(likelyMode);
+  const ref = useRef<HTMLDivElement>(null);
+  const joinRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    joinRef.current?.focus();
+    // A click anywhere else closes it; clicks on its own spot toggle it there.
+    const onDown = (e: PointerEvent) => {
+      const spot = ref.current?.parentElement;
+      if (spot && !spot.contains(e.target as Node)) onClose();
+    };
+    document.addEventListener("pointerdown", onDown);
+    return () => document.removeEventListener("pointerdown", onDown);
+  }, [onClose]);
+
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      className="ring-row min-h-12 rounded-full bg-surface px-[22px] text-sm font-extrabold text-text shadow-soft disabled:opacity-50"
+    <div
+      ref={ref}
+      role="dialog"
+      aria-label={`Join as Player ${slot}`}
+      className="picker-in absolute bottom-full left-1/2 z-20 -translate-x-1/2 mb-3 w-[232px] rounded-card bg-surface p-3 shadow-lift"
     >
-      {children}
-    </button>
+      <p className="px-1 pb-2 text-xs font-extrabold tracking-wide text-text-muted uppercase">Player {slot} controls</p>
+      <div role="radiogroup" className="flex flex-col gap-1">
+        {MODES.map(({ mode: m, label, Icon }) => (
+          <button
+            key={m}
+            type="button"
+            role="radio"
+            aria-checked={mode === m}
+            onClick={() => setMode(m)}
+            className={`ring-row flex min-h-10 items-center gap-2.5 rounded-tile px-3 text-sm font-extrabold transition-colors duration-150 ${
+              mode === m ? "bg-primary-text/10 text-primary-text" : "text-text hover:bg-bg"
+            }`}
+          >
+            <Icon size={18} aria-hidden />
+            {label}
+            <span
+              className={`ml-auto h-2 w-2 rounded-full bg-primary-text transition-opacity ${mode === m ? "opacity-100" : "opacity-0"}`}
+            />
+          </button>
+        ))}
+      </div>
+      <button
+        ref={joinRef}
+        type="button"
+        onClick={() => onJoin(mode)}
+        className="ring-row mt-3 inline-flex min-h-11 w-full items-center justify-center rounded-full bg-primary-text text-sm font-extrabold text-white shadow-[0_3px_0_#123F80] active:translate-y-0.5 active:shadow-[0_1px_0_#123F80]"
+      >
+        {mine ? "Play" : "Join"}
+      </button>
+      {/* Points at the spot. */}
+      <span className="absolute top-full left-1/2 -mt-1.5 h-3 w-3 -translate-x-1/2 rotate-45 bg-surface" aria-hidden />
+    </div>
   );
 }

@@ -322,7 +322,8 @@ export function HostHome() {
             label={snap.running ? "Playing now" : snap.resuming ? "Continues where you left off" : "Ready"}
             onStart={start}
             onEnd={endSession}
-            canEnd={!!game || snap.players.length > 1 || snap.spectators > 0}
+            // A cart that's only selected isn't a session yet.
+            canEnd={snap.running || snap.resuming || snap.players.length > 1 || snap.spectators > 0}
           />
 
           <section aria-label="Invite friends" className="flex flex-col gap-3 rounded-card bg-surface p-4 shadow-soft">

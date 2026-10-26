@@ -70,6 +70,8 @@ export class GuestSession {
   private peer: Peer | null = null;
   private link: PeerLink | null = null;
   private mode: InputMode = "gamepad";
+  /** The spot picked in the lobby, asked for again on reconnect. */
+  private pickedSlot = 0;
   private raf = 0;
   private seq = 0;
   private lastSent = 0;
@@ -173,7 +175,7 @@ export class GuestSession {
         this.set({ status: "connected" });
         link.sendControl({ t: "hello", name: getName("Guest"), token: tabToken(this.code) });
         // The host ignores this if the hello already got our slot back.
-        if (reconnect && this.wantSlot) link.sendControl({ t: "claim" });
+        if (reconnect && this.wantSlot) link.sendControl({ t: "claim", slot: this.pickedSlot });
       });
     });
   }
@@ -194,17 +196,22 @@ export class GuestSession {
     }, RETRY_MS);
   }
 
-  /** Ask for a controller slot. Input starts flowing once the host assigns one. */
-  claim(mode: InputMode) {
+  /**
+   * Ask for a controller slot, `slot` if it's still open. Input starts flowing
+   * once the host assigns one. A player picking another open spot moves there.
+   */
+  claim(mode: InputMode, slot = 0) {
     this.mode = mode;
+    this.pickedSlot = slot;
+    this.wantSlot = true;
     if (this.snapshot.slot) {
       this.stopInput();
       this.startInput();
+      if (slot && slot !== this.snapshot.slot) this.link?.sendControl({ t: "claim", slot });
       return;
     }
-    this.wantSlot = true;
     this.set({ claiming: true });
-    this.link?.sendControl({ t: "claim" });
+    this.link?.sendControl({ t: "claim", slot });
   }
 
   /** Give up the slot and spectate. */

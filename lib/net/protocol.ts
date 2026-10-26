@@ -96,7 +96,8 @@ export type ControlMessage =
   | { t: "hello"; name: string; token: string }
   | { t: "name"; name: string }
   | { t: "welcome"; hostName: string; game: Game | null; players: PlayerInfo[]; spectators: number; chat?: ChatLine[] }
-  | { t: "claim" }
+  /** `slot` is the spot picked in the lobby; taken or missing means any open one. */
+  | { t: "claim"; slot?: number }
   | { t: "unclaim" }
   /** 0 means spectator. */
   | { t: "slot"; slot: number }

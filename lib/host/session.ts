@@ -598,9 +598,12 @@ class HostSession {
         this.publishPlayers(true);
         break;
       case "claim": {
-        if (guest.slot) break;
         const taken = this.takenSlots();
-        this.assign(guest, this.guestSlots().find((s) => !taken.has(s)) ?? 0);
+        const open = this.guestSlots().filter((s) => !taken.has(s));
+        // A player only moves to an open pick; anyone else falls back to the first open spot.
+        const slot = msg.slot && open.includes(msg.slot) ? msg.slot : guest.slot || (open[0] ?? 0);
+        if (guest.slot && slot === guest.slot) break;
+        this.assign(guest, slot);
         this.publishPlayers();
         break;
       }
