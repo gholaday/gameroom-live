@@ -9,7 +9,7 @@ See `docs/claude-code-handoff.md` for the plan and `docs/mockups/` for the appro
 
 ```bash
 npm install
-npm run dev
+npm run dev   # also downloads emulator cores into public/cores
 ```
 
 ## Routes
@@ -19,6 +19,7 @@ npm run dev
 | `/` | Host home |
 | `/r/[code]` | Guest join |
 | `/play` | Play screen with the in-game menu (Start or Esc) |
+| `/spike` | Milestone 1 capture spike (`?rom=<file in /roms>` in dev) |
 
 ## Controls
 
@@ -39,3 +40,5 @@ While a game is running the UI ignores the controller except Start / Home (and E
 - `app/globals.css` Console Home tokens and the selection ring
 - `components/` the three screens and shared UI bits
 - `next.config.ts` COOP / COEP headers (cross-origin isolation)
+- `lib/emulator/` audio tap and core resolution; see `docs/m1-spike-notes.md`
+- `scripts/fetch-cores.mjs` self-hosts libretro cores

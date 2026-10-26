@@ -50,3 +50,9 @@ next-env.d.ts
 *.bin
 *.cue
 *.iso
+
+# Local test ROMs
+/roms/
+
+# Emulator cores, downloaded by scripts/fetch-cores.mjs
+/public/cores/
