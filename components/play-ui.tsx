@@ -290,7 +290,7 @@ export function EditableName({
           setValue(name);
           setEditing(true);
         }}
-        className="ring-row flex h-8 w-8 flex-none items-center justify-center rounded-full text-text-muted hover:bg-surface hover:text-text focus:bg-surface"
+        className="flex h-8 w-8 flex-none items-center justify-center rounded-full text-text-muted transition-colors hover:bg-surface hover:text-text focus:bg-surface focus:text-text"
       >
         <Pencil size={15} aria-hidden />
       </button>
