@@ -53,3 +53,22 @@ COEP. If the image is missing, the generated initials tile stays.
   re-attaches the same running framebuffer instead of a blank one.
 - The wake lock is held by the session (with refusal handled) instead of by
   RetroArch, whose request threw unhandled rejections.
+
+## Controls (milestone 5)
+
+- Mappings live in localStorage (`lib/input/controls.ts`): one keyboard map,
+  and one map per gamepad model (`Gamepad.id`). Binding a key or button that
+  another button already has swaps the two, so nothing silently loses its
+  binding. A button can end up unbound ("None") if it swapped with one that had
+  nothing.
+- Guests: their input already goes through our code, so mappings apply right
+  away. The input loop reads cached lookup tables, never the stored maps.
+- Host: player 1 plays through RetroArch's own input, the lowest-latency path.
+  The mapping becomes `input_player1_*` config at boot, for the first connected
+  controller, so changes apply from the next game start. Keys used to inject
+  players 2 to 4, plus Esc and F1, are refused.
+- While a row waits for input, `suspendNav()` turns keyboard and gamepad
+  navigation off. Button state is still tracked, so the button you just bound
+  doesn't count as a fresh press when navigation resumes.
+- Untested: the host's controller mapping assumes RetroArch's web gamepad
+  driver uses Standard Gamepad button indices for `input_player1_*_btn`.

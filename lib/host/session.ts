@@ -2,6 +2,7 @@ import type { DataConnection, Peer } from "peerjs";
 import type { Nostalgist } from "nostalgist";
 import { installAudioTap, type AudioTap } from "@/lib/emulator/audio-tap";
 import { selfHostedCores } from "@/lib/emulator/cores";
+import { hostInputConfig } from "@/lib/emulator/host-input";
 import { InputInjector, remoteBindingsConfig, remotePlayers } from "@/lib/emulator/injector";
 import { ROM_ACCEPT, type System } from "@/lib/emulator/systems";
 import { pinCanvasSize } from "@/lib/emulator/pin-canvas";
@@ -9,6 +10,7 @@ import { SlotReservations } from "@/lib/host/reservations";
 import { listSaves, writeSave, type SaveSlot } from "@/lib/host/saves-store";
 import { clearResume, loadResume, saveResumeRom, saveResumeState } from "@/lib/host/resume-store";
 import { getName, MAX_NAME, setName } from "@/lib/identity";
+import { getControls, padMapFor } from "@/lib/input/controls";
 import { gameForFile } from "@/lib/library/games";
 import { preferCodec } from "@/lib/net/codecs";
 import { perFrameMs } from "@/lib/net/latency";
@@ -243,6 +245,8 @@ class HostSession {
         // We hold one ourselves (keepAwake) and handle refusal.
         suspend_screensaver_enable: false,
         ...remoteBindingsConfig(),
+        // The host's own mapping, for the first connected controller.
+        ...hostInputConfig(getControls().keys, padMapFor(firstPadId())),
         ...config,
       },
     });
@@ -682,6 +686,11 @@ class HostSession {
     // RTT in the player list, at most once a second.
     this.timers.push(window.setInterval(() => this.publishPlayers(), 1000));
   }
+}
+
+function firstPadId() {
+  for (const pad of navigator.getGamepads()) if (pad?.connected) return pad.id;
+  return "";
 }
 
 function readRoom() {

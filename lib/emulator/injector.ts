@@ -48,6 +48,11 @@ export function remotePlayers(maxPlayers: number) {
   return Object.keys(BINDINGS).map(Number).filter((p) => p <= maxPlayers);
 }
 
+/** Every KeyboardEvent.code the injector uses, so player 1 can avoid them. */
+export function injectorCodes(): string[] {
+  return Object.values(BINDINGS).flatMap((keys) => Object.values(keys).map((k) => k![1]));
+}
+
 /** retroarchConfig entries for the bindings above. */
 export function remoteBindingsConfig(): Record<string, string> {
   const config: Record<string, string> = {};

@@ -4,8 +4,10 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { QRCodeSVG } from "qrcode.react";
 import { FolderOpen, Gamepad2, Plus, RefreshCw, Save, Settings, UserPlus, type LucideIcon } from "lucide-react";
+import { ControlsPanel } from "@/components/controls-panel";
 import { PlayersPanel, SettingsPanel } from "@/components/players-panel";
 import { Avatar, Dot, EmptySlot, Footer, Hint, Pill, type PlayerSlot } from "@/components/ui";
+import { HOST_RESERVED } from "@/lib/emulator/host-input";
 import { ROM_ACCEPT } from "@/lib/emulator/systems";
 import { hostSession } from "@/lib/host/session";
 import { gameForFile } from "@/lib/library/games";
@@ -256,7 +258,12 @@ export function HostHome() {
             onKick={(id) => hostSession.kick(id)}
           />
         )}
-        {panel === "settings" && <SettingsPanel name={snap.hostName} onName={(n) => hostSession.setHostName(n)} />}
+        {panel === "settings" && (
+          <>
+            <SettingsPanel name={snap.hostName} onName={(n) => hostSession.setHostName(n)} />
+            <ControlsPanel reserved={HOST_RESERVED} note="Changes apply from the next game you start." />
+          </>
+        )}
       </main>
 
       <Footer

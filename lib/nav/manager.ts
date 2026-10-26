@@ -62,6 +62,18 @@ export function enterGameMode(): () => void {
 
 const inGameMode = () => gameModeDepth > 0;
 
+let suspendDepth = 0;
+/**
+ * Turns all navigation off, for "press a key to bind" screens. Button state is
+ * still tracked, so a button held when navigation resumes isn't a new press.
+ */
+export function suspendNav(): () => void {
+  suspendDepth++;
+  return () => {
+    suspendDepth = Math.max(0, suspendDepth - 1);
+  };
+}
+
 // Marks whether the last input came from keyboard/gamepad or a pointer, so
 // CSS can show the ring for programmatic focus exactly like :focus-visible.
 function setInputMode(mode: "nav" | "pointer") {
@@ -172,7 +184,7 @@ const KEY_DIRS: Record<string, Direction> = {
  * document, which marks every key as handled (defaultPrevented).
  */
 function onKeyDown(e: KeyboardEvent) {
-  if (e.altKey || e.ctrlKey || e.metaKey) return;
+  if (suspendDepth > 0 || e.altKey || e.ctrlKey || e.metaKey) return;
 
   if (inGameMode()) {
     if (e.key === "Escape" && !e.repeat && fire("start")) {
@@ -235,14 +247,17 @@ function pollPads(now: number) {
       pads.set(pad.index, state);
     }
     const down = (i: number) => !!pad.buttons[i]?.pressed && !state.pressed[i];
-    if (pad.buttons.some((_, i) => down(i))) anyButtonListeners.forEach((fn) => fn());
 
-    if (inGameMode()) {
+    if (suspendDepth > 0) {
+      state.dir = null;
+    } else if (inGameMode()) {
+      if (pad.buttons.some((_, i) => down(i))) anyButtonListeners.forEach((fn) => fn());
       // Start belongs to the game, so the menu is Home or Select+Start.
       const chord = down(BTN.start) && !!pad.buttons[BTN.select]?.pressed;
       if (chord || down(BTN.home)) fire("start");
       state.dir = null;
     } else {
+      if (pad.buttons.some((_, i) => down(i))) anyButtonListeners.forEach((fn) => fn());
       const dir = stickDir(pad);
       if (dir && (dir !== state.dir || now >= state.nextRepeat)) {
         setInputMode("nav");

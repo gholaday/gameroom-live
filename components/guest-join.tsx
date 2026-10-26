@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Gamepad2 } from "lucide-react";
+import { ControlsPanel } from "@/components/controls-panel";
 import { GuestPlay } from "@/components/guest-play";
 import { NameField } from "@/components/players-panel";
 import { StreamVideo } from "@/components/stream-video";
@@ -11,11 +12,14 @@ import { getName } from "@/lib/identity";
 import { useAnyGamepadButton, useInitialFocus, useNavAction } from "@/lib/nav/react";
 
 const SLOTS: PlayerSlot[] = [1, 2, 3, 4];
+/** Esc opens the game menu. */
+const GUEST_RESERVED = new Set(["Escape"]);
 
 export function GuestJoin({ code }: { code: string }) {
   const [session] = useState(() => new GuestSession(code));
   const snap = useSyncExternalStore(session.subscribe, session.getSnapshot, session.getSnapshot);
   const [view, setView] = useState<"lobby" | "play">("lobby");
+  const [showControls, setShowControls] = useState(false);
   const [name, setNameValue] = useState(() => (typeof window === "undefined" ? "" : getName("")));
   const rttRef = useRef<HTMLSpanElement>(null);
 
@@ -116,6 +120,7 @@ export function GuestJoin({ code }: { code: string }) {
           ) : (
             <p className="self-center text-sm font-bold text-text-muted">This is a 1-player game. You can watch.</p>
           )}
+          <PillButton onClick={() => setShowControls((v) => !v)}>{showControls ? "Hide controls" : "Controls"}</PillButton>
           <button
             type="button"
             disabled={!connected}
@@ -125,6 +130,11 @@ export function GuestJoin({ code }: { code: string }) {
             Just watch
           </button>
         </div>
+        {showControls && (
+          <div className="w-full max-w-[720px]">
+            <ControlsPanel reserved={GUEST_RESERVED} />
+          </div>
+        )}
         <div className="w-full max-w-[260px]">
           <NameField label="Your name" value={name} onChange={setNameValue} onCommit={() => session.rename(name)} />
         </div>

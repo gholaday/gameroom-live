@@ -1,6 +1,7 @@
 import type { Peer } from "peerjs";
 import { getName, setName, tabToken } from "@/lib/identity";
-import { KEYBOARD, readGamepad } from "@/lib/input/retropad";
+import { keyMask, padMasksFor } from "@/lib/input/controls";
+import { readGamepad } from "@/lib/input/retropad";
 import { fetchIceConfig, PeerLink } from "@/lib/net/link";
 import { guestPeerId, signalingOptions } from "@/lib/net/signaling";
 import {
@@ -292,7 +293,7 @@ export class GuestSession {
   // ---------- Input loop ----------
 
   private onKey = (e: KeyboardEvent) => {
-    const mask = KEYBOARD[e.code];
+    const mask = keyMask(e.code);
     if (!mask || e.repeat) return;
     e.preventDefault();
     this.keyButtons = e.type === "keydown" ? this.keyButtons | mask : this.keyButtons & ~mask;
@@ -338,7 +339,7 @@ export class GuestSession {
       s.lx = s.ly = s.rx = s.ry = 0;
     } else {
       const pad = firstPad();
-      if (pad) readGamepad(pad, s);
+      if (pad) readGamepad(pad, s, padMasksFor(pad.id));
       else s.buttons = s.lx = s.ly = s.rx = s.ry = 0;
     }
     const t = this.sent;
