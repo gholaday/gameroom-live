@@ -30,7 +30,7 @@ export function useNavAction(action: NavAction, handler: () => void, enabled = t
   }, [action, enabled]);
 }
 
-/** While active, the UI ignores the controller except Start / Home / Escape. */
+/** While active, the UI ignores the controller except Home, Select+Start, and Escape. */
 export function useGameMode(active: boolean) {
   useEffect(() => {
     if (!active) return;

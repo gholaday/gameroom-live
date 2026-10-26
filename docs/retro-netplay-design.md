@@ -34,8 +34,8 @@ All systems use the libretro **RetroPad** abstraction, so the input protocol is 
  HOST BROWSER                                   GUEST BROWSER(S)
  ┌──────────────────────────┐                   ┌───────────────────────┐
  │ ROM (local file)          │                   │ <video> (pixelated)    │
- │ Emulator core in Worker   │── video+audio ──▶│ Gamepad / touch / kbd  │
- │ OffscreenCanvas → stream  │   (WebRTC media)  │                        │
+ │ Emulator core (main thr.) │── video+audio ──▶│ Gamepad / touch / kbd  │
+ │ Canvas → captureStream    │   (WebRTC media)  │                        │
  │ Input mixer (P1–P4)       │◀── input ────────│ Input sender (60 Hz)   │
  └──────────────────────────┘   (DataChannel)   └───────────────────────┘
             │                                               │
@@ -78,13 +78,13 @@ All systems use the libretro **RetroPad** abstraction, so the input protocol is 
 
 ### Techniques
 
-- **Emulator off the main thread:** run the core in a Worker with OffscreenCanvas, so UI and WebRTC work never steal frame time.
+- **Emulator on the main thread, UI kept out of its way:** RetroArch's Emscripten build (Nostalgist and EmulatorJS alike) needs a DOM canvas and runs its own requestAnimationFrame main loop, so it can't move to a Worker. While a game runs, the play screen's React tree stays static and nothing re-renders per frame. If jank shows up, isolate the emulator in a cross-origin iframe (its own process). See `docs/m1-spike-notes.md`.
 - **Tiny streams:** stream at native resolution × an integer scale (2x for 2D systems, ~640×480 for N64/PS1). Upscale on the guest with `image-rendering: pixelated`.
 - **Codec:** prefer H.264 through `setCodecPreferences`, since hardware encode is the most common. VP8 is the fallback.
 - **Encoder settings:** `contentHint = 'motion'`, `degradationPreference = 'maintain-framerate'`, and a capped `maxBitrate` that adapts to the connection.
 - **No buffering on the guest:** `jitterBufferTarget = 0`; drop late frames rather than queue them.
 - **Inputs:** unordered, unreliable DataChannel (`ordered: false, maxRetransmits: 0`). The host applies the newest packet per player at the start of each frame.
-- **Frame pacing:** drive the emulator from a steady 60 Hz (50 for PAL) clock, not raw `requestAnimationFrame`, so stream framerate stays even.
+- **Frame pacing:** RetroArch drives frames from `requestAnimationFrame` and throttles to the core's rate via audio sync. Verify on high-refresh displays that emulation stays at 60 Hz (50 for PAL).
 - **Measurement built in:** a DataChannel ping shows each player's RTT and an estimated total latency in a small overlay.
 
 ## 6. Input protocol
@@ -103,9 +103,8 @@ One 8-byte packet per player, sent every frame and immediately on change:
 
 ## 7. Video and audio pipeline
 
-- **Video:** `OffscreenCanvas` → `captureStream(60)` → WebRTC track. For WebGL cores (N64, some PS1 renderers) use `preserveDrawingBuffer: true`, or capture right after present, to avoid blank frames.
-- **Audio:** route the core's WebAudio output through a `MediaStreamAudioDestinationNode` → WebRTC audio track (Opus, low-latency mode). The host also hears local output directly, never the round-tripped stream.
-- **Risk:** audio capture from the emulator runtime is the least proven piece. Prototype it first.
+- **Video:** canvas → `captureStream(60)` → WebRTC track. RetroArch sizes its framebuffer from the canvas's CSS box, so pin it to native × integer scale and use `aspect_ratio_index: 21` (square pixels). For WebGL cores (N64, some PS1 renderers) use `preserveDrawingBuffer: true`, or capture right after present, to avoid blank frames.
+- **Audio:** RetroArch's RWebAudio driver creates its own AudioContext and connects a new buffer source to `destination` per chunk. Before boot, wrap `AudioContext` and patch `AudioNode.prototype.connect` so those connections go to a bus that feeds both the speakers and a `MediaStreamAudioDestinationNode` → WebRTC audio track (Opus). The host hears local output directly, never the round-tripped stream. Proven in the milestone 1 spike.
 
 ## 8. Ease of use details
 
@@ -130,7 +129,7 @@ One 8-byte packet per player, sent every frame and immediately on change:
 
 | Risk | Mitigation |
 |---|---|
-| Capturing emulator audio | Prototype first; fall back to a patched audio output in the core wrapper |
+| Capturing emulator audio | Solved in the spike: AudioContext wrap plus connect() reroute |
 | Codec smearing on pixel art | Integer-scale stream, higher bitrate floor for 2D systems |
 | N64 performance on the host | Curate a "known good" list; show host-requirements note |
 | Strict NAT / corporate networks | TURN relay always configured |
@@ -139,7 +138,7 @@ One 8-byte packet per player, sent every frame and immediately on change:
 
 ## 11. Milestones
 
-1. **Spike:** SNES core in a Worker, local capture → `<video>` on the same page. Validate audio capture.
+1. **Spike:** SNES core, local capture → `<video>` on the same page. Validate audio capture. (Done)
 2. **Two-player SNES:** PeerJS room link, stream to one guest, guest gamepad input.
 3. **Polish the core loop:** player slots, latency overlay, reconnect, touch controls.
 4. **Systems pass:** NES, Genesis, GB/GBA, then PS1 (BIOS + discs), then N64 (analog, WebGL capture).

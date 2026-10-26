@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import type { PlayerSlot } from "@/lib/fake-data";
+export type PlayerSlot = 1 | 2 | 3 | 4;
 
 const SLOT_STYLE: Record<PlayerSlot, string> = {
   1: "bg-p1 text-white",

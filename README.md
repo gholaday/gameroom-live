@@ -10,15 +10,19 @@ See `docs/claude-code-handoff.md` for the plan and `docs/mockups/` for the appro
 ```bash
 npm install
 npm run dev   # also downloads emulator cores into public/cores
+npm test
 ```
+
+Optional TURN: copy `.env.example` to `.env.local` and fill in Cloudflare TURN credentials.
+Dev shortcut: `/?rom=<file in /roms>` loads a test ROM on the host home.
 
 ## Routes
 
 | Route | Screen |
 |---|---|
 | `/` | Host home |
-| `/r/[code]` | Guest join |
-| `/play` | Play screen with the in-game menu (Start or Esc) |
+| `/r/[code]` | Guest lobby, then fullscreen play or spectate |
+| `/play` | Host play screen with the in-game menu |
 | `/spike` | Milestone 1 capture spike (`?rom=<file in /roms>` in dev) |
 
 ## Controls
@@ -29,9 +33,10 @@ npm run dev   # also downloads emulator cores into public/cores
 | OK | Enter | A (bottom face button) |
 | Back | Escape | B (right face button) |
 | Invite (host home) | | X |
-| Start game / open menu | Escape (in game) | Start or Home |
+| Start game (host home) | | Start |
+| In-game menu | Escape | Home, or Select+Start |
 
-While a game is running the UI ignores the controller except Start / Home (and Escape).
+While a game is running the UI ignores the controller except the menu combo, so Start reaches the game.
 
 ## Code map
 
@@ -40,5 +45,7 @@ While a game is running the UI ignores the controller except Start / Home (and E
 - `app/globals.css` Console Home tokens and the selection ring
 - `components/` the three screens and shared UI bits
 - `next.config.ts` COOP / COEP headers (cross-origin isolation)
-- `lib/emulator/` audio tap and core resolution; see `docs/m1-spike-notes.md`
+- `lib/emulator/` audio tap, canvas pinning, input injection; see `docs/m1-spike-notes.md`
+- `lib/net/` wire protocol, PeerLink (one RTCPeerConnection per guest); see `docs/m2-notes.md`
+- `lib/host/session.ts`, `lib/guest/session.ts` room state outside React
 - `scripts/fetch-cores.mjs` self-hosts libretro cores

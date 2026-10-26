@@ -5,8 +5,8 @@
 // Gamepad (standard mapping): D-pad or left stick moves, A activates,
 // B is "back", X / Y / Start / Home fire named actions.
 //
-// In game mode the UI ignores everything except Start / Home (and Escape on
-// the keyboard), so the game gets the controller.
+// In game mode the UI ignores everything except Home or Select+Start (and
+// Escape on the keyboard), so the game gets the controller, Start included.
 
 export type Direction = "up" | "down" | "left" | "right";
 export type NavAction = "back" | "x" | "y" | "start";
@@ -17,7 +17,7 @@ const FOCUSABLE =
   'button:not([disabled]), a[href], input:not([disabled]):not([type="hidden"]), [data-nav]';
 
 // Standard Gamepad mapping indices.
-const BTN = { a: 0, b: 1, x: 2, y: 3, start: 9, up: 12, down: 13, left: 14, right: 15, home: 16 } as const;
+const BTN = { a: 0, b: 1, x: 2, y: 3, select: 8, start: 9, up: 12, down: 13, left: 14, right: 15, home: 16 } as const;
 const STICK_THRESHOLD = 0.5;
 const REPEAT_DELAY_MS = 380;
 const REPEAT_RATE_MS = 110;
@@ -223,7 +223,9 @@ function pollPads(now: number) {
     if (pad.buttons.some((_, i) => down(i))) anyButtonListeners.forEach((fn) => fn());
 
     if (inGameMode()) {
-      if (down(BTN.start) || down(BTN.home)) fire("start");
+      // Start belongs to the game, so the menu is Home or Select+Start.
+      const chord = down(BTN.start) && !!pad.buttons[BTN.select]?.pressed;
+      if (chord || down(BTN.home)) fire("start");
       state.dir = null;
     } else {
       const dir = stickDir(pad);

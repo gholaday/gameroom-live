@@ -1,76 +1,96 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { QRCodeSVG } from "qrcode.react";
 import { Gamepad2, Plus, Save, Settings, UserPlus, type LucideIcon } from "lucide-react";
-import { Avatar, Dot, EmptySlot, Footer, Hint, Pill } from "@/components/ui";
-import { GAMES, PLAYERS, ROOM_CODE, type Game, type PlayerSlot } from "@/lib/fake-data";
+import { Avatar, Dot, EmptySlot, Footer, Hint, Pill, type PlayerSlot } from "@/components/ui";
+import { hostSession } from "@/lib/host/session";
+import type { Game } from "@/lib/net/protocol";
 import { useInitialFocus, useNavAction } from "@/lib/nav/react";
-import { useHost } from "@/lib/use-origin";
+import { useHost, useOrigin } from "@/lib/use-origin";
 
 const SLOTS: PlayerSlot[] = [1, 2, 3, 4];
-const READY_STATUS = "Paused and ready. Start when everyone is in.";
-
-const SYSTEM_BY_EXT: Record<string, string> = {
-  sfc: "Super Nintendo",
-  smc: "Super Nintendo",
-  z64: "Nintendo 64",
-  n64: "Nintendo 64",
-};
 
 export function HostHome() {
   const router = useRouter();
-  const [games, setGames] = useState<Game[]>(GAMES);
-  const [selected, setSelected] = useState(0);
-  const [status, setStatus] = useState(READY_STATUS);
+  const snap = useSyncExternalStore(hostSession.subscribe, hostSession.getSnapshot, hostSession.getSnapshot);
+  const [note, setNote] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const copyRef = useRef<HTMLButtonElement>(null);
 
   const host = useHost("localhost:3000");
-  const roomLink = `${host}/r/${ROOM_CODE}`;
-  const game = games[selected];
+  const origin = useOrigin("http://localhost:3000");
+  const roomLink = snap.code ? `${host}/r/${snap.code}` : "Opening your room";
+  const game = snap.rom?.game ?? null;
 
+  useEffect(() => {
+    void hostSession.open();
+  }, []);
+
+  // Dev shortcut: /?rom=<file in /roms> loads a test ROM without the picker.
+  useEffect(() => {
+    if (process.env.NODE_ENV !== "development") return;
+    const name = new URLSearchParams(window.location.search).get("rom");
+    if (!name || hostSession.getSnapshot().rom) return;
+    fetch(`/dev/roms/${encodeURIComponent(name)}`)
+      .then((r) => (r.ok ? r.blob() : Promise.reject(new Error(String(r.status)))))
+      .then((blob) => hostSession.setRom(new File([blob], name)))
+      .catch(() => {});
+  }, []);
   useInitialFocus();
 
-  const start = (g: Game) => router.push(`/play?game=${encodeURIComponent(g.id)}`);
+  const start = () => {
+    if (snap.rom) router.push("/play");
+    else setNote("Open a ROM file first.");
+  };
   const focusInvite = () => {
     copyRef.current?.focus();
     copyRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
   };
+  const endSession = () => {
+    hostSession.end();
+    void hostSession.open();
+    setNote("Session ended. A new room is open.");
+  };
 
-  useNavAction("start", () => game && start(game));
+  useNavAction("start", start);
   useNavAction("x", focusInvite);
-  useNavAction("back", () => setStatus("End session is not wired up yet."));
+  useNavAction("back", endSession);
 
   const copy = async () => {
+    if (!snap.code) return;
     try {
       await navigator.clipboard.writeText(`${location.protocol}//${roomLink}`);
       setCopied(true);
       setTimeout(() => setCopied(false), 1600);
     } catch {
-      setStatus("Could not copy. Select the link and copy it by hand.");
+      setNote("Could not copy. Select the link and copy it by hand.");
     }
   };
 
   const openRom = (file: File) => {
-    const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
-    const g: Game = {
-      id: `local-${Date.now()}`,
-      title: file.name.replace(/\.[^.]+$/, ""),
-      system: SYSTEM_BY_EXT[ext] ?? "Unknown system",
-    };
-    setGames((prev) => [...prev, g]);
-    setSelected(games.length);
+    setNote(hostSession.setRom(file));
   };
+
+  const guests = snap.players.length - 1;
+  const status =
+    note ??
+    (snap.status === "error"
+      ? `Room error: ${snap.error}`
+      : snap.status !== "open"
+        ? "Opening your room."
+        : guests || snap.spectators
+          ? `${guests} playing with you, ${snap.spectators} watching.`
+          : "Paused and ready. Start when everyone is in.");
 
   return (
     <div className="flex min-h-screen flex-col">
       <header className="flex flex-wrap items-center justify-between gap-4 px-10 py-[22px] max-sm:px-4">
         <div className="flex items-center gap-2.5">
           {SLOTS.map((slot) => {
-            const p = PLAYERS.find((pl) => pl.slot === slot);
+            const p = snap.players.find((pl) => pl.slot === slot);
             return p ? (
               <Avatar key={slot} slot={slot} name={p.name} className="shadow-[0_0_0_3px_#fff]" />
             ) : (
@@ -80,32 +100,25 @@ export function HostHome() {
         </div>
         <div className="flex items-center gap-2.5">
           <Pill>
-            <Dot />
+            <Dot className={snap.status === "open" ? "bg-ok" : snap.status === "error" ? "bg-danger" : "bg-slot-empty"} />
             Hosting
           </Pill>
-          <Pill className="text-text-muted">Room {ROOM_CODE}</Pill>
+          <Pill className="text-text-muted">{snap.code ? `Room ${snap.code}` : "No room yet"}</Pill>
         </div>
       </header>
 
       <main className="mx-auto flex w-full max-w-[1360px] flex-1 flex-col gap-[34px] px-10 pt-[18px] pb-[30px] max-sm:px-4">
         <section className="flex flex-col gap-3.5" aria-label="Games">
           <div className="flex items-baseline gap-3.5">
-            <h1 className="text-[26px] font-extrabold text-primary-text">{game?.title}</h1>
-            <span className="text-sm font-bold text-text-muted">{game?.system}</span>
+            <h1 className="text-[26px] font-extrabold text-primary-text">{game?.title ?? "Open a ROM to start"}</h1>
+            {game && <span className="text-sm font-bold text-text-muted">{game.system}</span>}
           </div>
           <div className="flex items-end gap-[22px] overflow-x-auto p-3 [scrollbar-width:none]">
-            {games.map((g, i) => (
-              <GameTile
-                key={g.id}
-                game={g}
-                selected={i === selected}
-                onFocus={() => setSelected(i)}
-                onClick={() => start(g)}
-              />
-            ))}
+            {game && <GameTile game={game} onClick={start} />}
             <button
               type="button"
               onClick={() => fileRef.current?.click()}
+              data-nav-default={game ? undefined : ""}
               className="ring-tile box-border flex h-[210px] w-[210px] flex-none flex-col items-center justify-center gap-2.5 rounded-tile border-2 border-dashed border-slot-empty bg-transparent font-bold text-text"
             >
               <Plus size={36} strokeWidth={2} aria-hidden />
@@ -115,7 +128,7 @@ export function HostHome() {
               ref={fileRef}
               type="file"
               hidden
-              accept=".sfc,.smc,.z64,.n64,.zip"
+              accept=".sfc,.smc"
               onChange={(e) => {
                 const file = e.target.files?.[0];
                 if (file) openRom(file);
@@ -128,9 +141,9 @@ export function HostHome() {
         <div className="flex flex-wrap items-center justify-between gap-7">
           <div className="flex flex-wrap gap-[22px]">
             <Shortcut icon={UserPlus} label="Invite" ariaLabel="Invite friends" color="text-primary-text" onClick={focusInvite} />
-            <Shortcut icon={Gamepad2} label="Players" color="text-p2" onClick={() => setStatus("Players is coming soon.")} />
-            <Shortcut icon={Save} label="Saves" ariaLabel="Save states" color="text-p3" onClick={() => setStatus("Saves are coming soon.")} />
-            <Shortcut icon={Settings} label="Settings" color="text-text-muted" onClick={() => setStatus("Settings are coming soon.")} />
+            <Shortcut icon={Gamepad2} label="Players" color="text-p2" onClick={() => setNote("Players is coming soon.")} />
+            <Shortcut icon={Save} label="Saves" ariaLabel="Save states" color="text-p3" onClick={() => setNote("Saves are coming soon.")} />
+            <Shortcut icon={Settings} label="Settings" color="text-text-muted" onClick={() => setNote("Settings are coming soon.")} />
           </div>
 
           <section
@@ -138,7 +151,7 @@ export function HostHome() {
             className="flex min-w-0 flex-[0_1_460px] items-center gap-4 max-sm:flex-auto max-sm:w-full rounded-card bg-surface p-4 shadow-[0_2px_6px_rgba(0,0,0,0.06)]"
           >
             <QRCodeSVG
-              value={`https://${roomLink}`}
+              value={`${origin}/r/${snap.code ?? ""}`}
               size={88}
               fgColor="#2B2B2E"
               className="flex-none"
@@ -185,29 +198,14 @@ export function HostHome() {
   );
 }
 
-function GameTile({
-  game,
-  selected,
-  onFocus,
-  onClick,
-}: {
-  game: Game;
-  selected: boolean;
-  onFocus: () => void;
-  onClick: () => void;
-}) {
-  const size = selected ? 250 : 210;
+function GameTile({ game, onClick }: { game: Game; onClick: () => void }) {
   return (
     <button
       type="button"
-      onFocus={onFocus}
       onClick={onClick}
       aria-label={`${game.title}, ${game.system}`}
-      data-nav-default={selected ? "" : undefined}
-      style={{ width: size, height: size }}
-      className={`ring-tile flex flex-none flex-col overflow-hidden rounded-tile bg-surface p-0 text-left transition-[width,height,box-shadow] duration-150 ${
-        selected ? "shadow-lift" : "shadow-soft"
-      }`}
+      data-nav-default=""
+      className="ring-tile flex h-[250px] w-[250px] flex-none flex-col overflow-hidden rounded-tile bg-surface p-0 text-left shadow-lift"
     >
       <BoxArt game={game} />
       <span className="truncate px-3.5 py-2.5 text-sm font-bold text-text">{game.title}</span>
@@ -220,7 +218,7 @@ const ART_COLORS = ["#E5603F", "#1F9E89", "#7A5AF0", "#E0A21B", "#1A5FC0"];
 /** Placeholder cover until real box art exists. */
 function BoxArt({ game }: { game: Game }) {
   let hash = 0;
-  for (const ch of game.id) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
+  for (const ch of game.title) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
   const color = ART_COLORS[hash % ART_COLORS.length];
   const initials = game.title
     .split(/\s+/)

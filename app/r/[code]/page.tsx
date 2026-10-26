@@ -1,12 +1,7 @@
-import { Suspense } from "react";
-import { GuestJoin } from "@/components/guest-join";
+import { GuestRoute } from "@/components/guest-route";
 
-export default function Page({ params }: PageProps<"/r/[code]">) {
-  return (
-    <Suspense fallback={null}>
-      {params.then(({ code }) => (
-        <GuestJoin code={code.toUpperCase()} />
-      ))}
-    </Suspense>
-  );
+// The room code is read on the client, so the whole join page prerenders as a
+// static shell and paints before any JS runs.
+export default function Page() {
+  return <GuestRoute />;
 }

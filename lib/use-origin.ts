@@ -12,3 +12,12 @@ export function useHost(fallback = "") {
     () => fallback,
   );
 }
+
+/** The current origin (with protocol), or a fallback during server render. */
+export function useOrigin(fallback = "") {
+  return useSyncExternalStore(
+    subscribe,
+    () => window.location.origin,
+    () => fallback,
+  );
+}

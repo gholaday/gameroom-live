@@ -9,12 +9,14 @@
     "lint": "eslint",
     "cores": "node scripts/fetch-cores.mjs",
     "predev": "node scripts/fetch-cores.mjs",
-    "prebuild": "node scripts/fetch-cores.mjs"
+    "prebuild": "node scripts/fetch-cores.mjs",
+    "test": "vitest run"
   },
   "dependencies": {
     "lucide-react": "^1.61.0",
     "next": "16.4.3",
     "nostalgist": "^0.23.0",
+    "peerjs": "^1.5.5",
     "qrcode.react": "^4.2.0",
     "react": "19.3.0",
     "react-dom": "19.3.0"
@@ -28,6 +30,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.4.3",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.12"
   }
 }
