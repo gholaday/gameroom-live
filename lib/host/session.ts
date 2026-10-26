@@ -17,6 +17,7 @@ import { perFrameMs } from "@/lib/net/latency";
 import { ICE_CONFIG, PeerLink } from "@/lib/net/link";
 import { signalingOptions } from "@/lib/net/signaling";
 import { HOST_PEER, stampPeer } from "@/lib/net/overlay";
+import { clearRoom, readRoom, writeRoom } from "@/lib/host/room-tab";
 import {
   CHAT_HISTORY,
   chatText,
@@ -46,7 +47,6 @@ const INPUT_TIMEOUT_MS = 250;
 const SLOT_HOLD_MS = 60_000;
 /** Save a resume state this often while playing. */
 const AUTOSAVE_MS = 10_000;
-const ROOM_KEY = "gameroom-room";
 
 type Guest = {
   id: string;
@@ -779,23 +779,6 @@ function firstPadId() {
   return "";
 }
 
-function readRoom() {
-  try {
-    return sessionStorage.getItem(ROOM_KEY);
-  } catch {
-    return null;
-  }
-}
-function writeRoom(code: string) {
-  try {
-    sessionStorage.setItem(ROOM_KEY, code);
-  } catch {}
-}
-function clearRoom() {
-  try {
-    sessionStorage.removeItem(ROOM_KEY);
-  } catch {}
-}
 
 export const hostSession = new HostSession();
 

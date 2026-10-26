@@ -69,6 +69,12 @@ export function HostPlay() {
   const audio = useAudioPref();
   useEffect(() => hostSession.setVolume(effectiveVolume(audio)), [audio]);
 
+  // Started before the room opened (offline, say): move to the room's link once
+  // it does, without leaving this screen.
+  useEffect(() => {
+    if (snap.code && window.location.pathname === "/play") window.history.replaceState(null, "", `/r/${snap.code}`);
+  }, [snap.code]);
+
   // Pill: worst guest RTT and outbound fps, once a second, straight to the DOM.
   useEffect(() => {
     if (!snap.running) return;

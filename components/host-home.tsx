@@ -97,7 +97,8 @@ export function HostHome() {
   useInitialFocus();
 
   const start = () => {
-    if (snap.rom) router.push("/play");
+    // The game lives at the room's own link; /play only until the room opens (offline, say).
+    if (snap.rom) router.push(snap.code ? `/r/${snap.code}` : "/play");
     else setNote("Pick a game first.");
   };
   const focusInvite = () => {
