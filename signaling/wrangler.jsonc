@@ -10,8 +10,9 @@
   // sockets live in memory and survive hibernation via their attachments.
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["SignalRoom"] }],
   "vars": {
-    // Override per environment, e.g. in the dashboard or with --var.
-    "ALLOWED_ORIGINS": "http://localhost:3000,http://localhost:3001"
+    // Exact origins that may open signaling sockets. Kept here, not in the
+    // dashboard: every CI deploy applies this file.
+    "ALLOWED_ORIGINS": "https://games.holaday.dev,http://localhost:3000,http://localhost:3001"
   },
   "observability": { "enabled": true }
 }
