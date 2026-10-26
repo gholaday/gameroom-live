@@ -24,7 +24,7 @@ import {
   X,
   type LucideIcon,
 } from "lucide-react";
-import { Cartridge, cartSize } from "@/components/cartridge";
+import { Cartridge, cartSize, Disc, isDisc, mediaSize } from "@/components/cartridge";
 import { ControlsPanel } from "@/components/controls-panel";
 import { ago, Thumb } from "@/components/save-slots";
 import { PlayersPanel, SettingsPanel } from "@/components/players-panel";
@@ -572,7 +572,7 @@ function ConsoleDeck({
   onEnd: () => void;
   canEnd: boolean;
 }) {
-  const size = game ? cartSize(game.systemId) : null;
+  const size = game ? mediaSize(game.systemId) : null;
   return (
     <section aria-label="Console" className="mb-2 flex flex-col pt-1">
       {/* The cart's lower part sits behind the console body, as if pushed into the slot. */}
@@ -583,7 +583,11 @@ function ConsoleDeck({
             className="absolute left-1/2 -translate-x-1/2"
             style={{ bottom: -size.height * 0.28 }}
           >
-            <Cartridge game={game} className="cart-insert cart-shadow" />
+            {isDisc(game.systemId) ? (
+              <Disc game={game} className="cart-insert cart-shadow" />
+            ) : (
+              <Cartridge game={game} className="cart-insert cart-shadow" />
+            )}
           </div>
         )}
       </div>

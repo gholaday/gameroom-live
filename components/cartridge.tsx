@@ -170,6 +170,50 @@ export function Cartridge({ game, ghost, className = "" }: { game: Game; ghost?:
   );
 }
 
+/** Systems whose games are discs: the shelf shows the case, the console takes the disc. */
+export const isDisc = (systemId: SystemId) => systemId === "ps1";
+
+/** A CD is 120 mm across. */
+const DISC_MM = 120;
+
+/** What goes in the console: the cartridge, or for disc systems the disc. */
+export function mediaSize(systemId: SystemId) {
+  if (!isDisc(systemId)) return cartSize(systemId);
+  const d = DISC_MM * CART_SCALE;
+  return { width: d, height: d };
+}
+
+/**
+ * A CD, label side up: a silver rim, the cover printed on the label, a clear
+ * hub around the 15 mm hole (punched with a mask, so the hole shows what's behind).
+ */
+export function Disc({ game, className = "" }: { game: Game; className?: string }) {
+  const d = DISC_MM * CART_SCALE;
+  return (
+    <span
+      aria-hidden
+      className={`relative block rounded-full ${className}`}
+      style={{
+        width: d,
+        height: d,
+        background: "conic-gradient(from 30deg, #d9d9df, #f4f4f7, #c9cbd6, #eef0f5, #d2d0dc, #f4f4f7, #d9d9df)",
+        mask: "radial-gradient(circle closest-side, transparent 12.5%, #000 13%)",
+      }}
+    >
+      <span className="absolute inset-[2.5%] flex overflow-hidden rounded-full">
+        <LabelArt game={game} initials="text-3xl" />
+      </span>
+      {/* Clear plastic hub: unprinted, with the stacking ring. */}
+      <span
+        className="absolute top-1/2 left-1/2 h-[36%] w-[36%] -translate-x-1/2 -translate-y-1/2 rounded-full"
+        style={{
+          background: "radial-gradient(circle closest-side, #cfd0d8 0 58%, #e9e9ee 60% 92%, #bdbdc6 94% 100%)",
+        }}
+      />
+    </span>
+  );
+}
+
 const ART_COLORS = ["#E5603F", "#1F9E89", "#7A5AF0", "#E0A21B", "#1A5FC0"];
 
 /** Box art when libretro has it; generated initials while it loads or if it doesn't. */
