@@ -44,7 +44,9 @@ export function HostPlay() {
     const box = frameBoxRef.current;
     const canvas = (canvasRef.current = hostSession.getCanvas());
     if (!box || !canvas || !rom) return;
-    canvas.className = "h-full w-full object-contain [image-rendering:pixelated] transition-opacity";
+    // Sized to the picture (the canvas's own aspect), so its black clear color
+    // doesn't show as a box around the game.
+    canvas.className = "h-full w-auto max-w-full object-contain [image-rendering:pixelated] transition-opacity";
     box.prepend(canvas);
     return () => canvas.remove();
   }, [canvasRef, rom]);

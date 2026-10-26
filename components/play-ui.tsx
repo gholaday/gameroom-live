@@ -384,15 +384,37 @@ function ToastStack<T extends { id: number }>({
       }`}
     >
       {shown.map((item) => (
-        <li
-          key={item.id}
-          onAnimationEnd={() => setGone((g) => new Set(g).add(item.id))}
-          className={`${side === "right" ? "toast-right" : "toast-left"} rounded-2xl bg-white/92 px-4 py-2.5 text-sm leading-snug break-words shadow-soft`}
-        >
+        <Toast key={item.id} side={side} onDone={() => setGone((g) => new Set(g).add(item.id))}>
           {children(item)}
-        </li>
+        </Toast>
       ))}
     </ol>
+  );
+}
+
+/** How long a toast lives: its 5 s animation, plus slack. */
+const TOAST_MS = 5500;
+
+/**
+ * One toast. Leaves when its fade ends, or on a timer if the animation never
+ * runs (styles not loaded, or a tab that isn't painting).
+ */
+function Toast({ side, onDone, children }: { side: "left" | "right"; onDone: () => void; children: ReactNode }) {
+  const done = useRef(onDone);
+  useEffect(() => {
+    done.current = onDone;
+  });
+  useEffect(() => {
+    const id = setTimeout(() => done.current(), TOAST_MS);
+    return () => clearTimeout(id);
+  }, []);
+  return (
+    <li
+      onAnimationEnd={() => done.current()}
+      className={`${side === "right" ? "toast-right" : "toast-left"} rounded-2xl bg-white/92 px-4 py-2.5 text-sm leading-snug break-words shadow-soft`}
+    >
+      {children}
+    </li>
   );
 }
 
