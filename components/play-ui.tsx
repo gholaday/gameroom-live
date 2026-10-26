@@ -1,6 +1,6 @@
 "use client";
 
-import { forwardRef, type ReactNode } from "react";
+import { forwardRef, useState, type ReactNode } from "react";
 import { Avatar, Dot, Hint, HintBar, latencyClass, type PlayerSlot } from "@/components/ui";
 import type { PlayerInfo } from "@/lib/net/protocol";
 import { useInitialFocus, useNavAction } from "@/lib/nav/react";
@@ -93,12 +93,32 @@ export function setPill(pill: HTMLElement | null, rttMs: number | null, fps: num
   if (f.textContent !== fpsText) f.textContent = fpsText;
 }
 
+/**
+ * Menu open state with an exit animation: `open` drives pausing and game
+ * mode (so play resumes the moment you close), `shown` keeps the panel
+ * mounted while it slides out.
+ */
+export function useMenu() {
+  const [state, setState] = useState<"closed" | "open" | "closing">("closed");
+  return {
+    open: state === "open",
+    shown: state !== "closed",
+    closing: state === "closing",
+    toggle: () => setState((s) => (s === "open" ? "closing" : "open")),
+    openMenu: () => setState("open"),
+    close: () => setState((s) => (s === "open" ? "closing" : s)),
+    onClosed: () => setState((s) => (s === "closing" ? "closed" : s)),
+  };
+}
+
 export function MenuPanel({
   system,
   title,
   players,
   spectators,
   onBack,
+  closing = false,
+  onClosed,
   children,
 }: {
   system: string;
@@ -106,16 +126,27 @@ export function MenuPanel({
   players: PlayerInfo[];
   spectators: number;
   onBack: () => void;
+  /** Slide out, then call onClosed. */
+  closing?: boolean;
+  onClosed?: () => void;
   children: ReactNode;
 }) {
-  useInitialFocus();
-  useNavAction("back", onBack);
+  useInitialFocus(!closing);
+  useNavAction("back", onBack, !closing);
   return (
     <>
-      <div aria-hidden className="absolute inset-0 z-20 bg-black/45" onClick={onBack} />
+      <div
+        aria-hidden
+        className={`absolute inset-0 z-20 bg-black/45 ${closing ? "fade-out" : "fade-in"}`}
+        onClick={closing ? undefined : onBack}
+      />
       <aside
         aria-label="Game menu"
-        className="menu-in absolute top-0 right-0 bottom-0 z-30 flex w-full max-w-[420px] flex-col overflow-y-auto rounded-l-menu bg-panel"
+        inert={closing}
+        onAnimationEnd={(e) => {
+          if (closing && e.target === e.currentTarget) onClosed?.();
+        }}
+        className={`${closing ? "menu-out" : "menu-in"} absolute top-0 right-0 bottom-0 z-30 flex w-full max-w-[420px] flex-col overflow-y-auto rounded-l-menu bg-panel`}
       >
         <div className="flex flex-col gap-1 px-7 pt-7 pb-[18px]">
           <span className="text-[13px] font-bold text-text-muted">{system}</span>
@@ -156,22 +187,26 @@ export function MenuRow({
   onClick,
   isDefault,
   danger,
+  icon,
 }: {
   children: string;
   onClick: () => void;
   isDefault?: boolean;
   danger?: boolean;
+  /** Shown at the right edge, e.g. a copy icon. */
+  icon?: ReactNode;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
       data-nav-default={isDefault ? "" : undefined}
-      className={`ring-row min-h-[52px] rounded-xl px-4 text-left text-base font-bold focus:bg-surface focus:font-extrabold ${
+      className={`ring-row flex min-h-[52px] items-center justify-between gap-3 rounded-xl px-4 text-left text-base font-bold focus:bg-surface focus:font-extrabold ${
         danger ? "font-extrabold text-danger" : "text-text focus:text-primary-text"
       }`}
     >
       {children}
+      {icon && <span className="flex-none text-text-muted">{icon}</span>}
     </button>
   );
 }

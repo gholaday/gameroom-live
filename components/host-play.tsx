@@ -4,10 +4,11 @@ import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } fr
 import { useRouter } from "next/navigation";
 import { OverlayLayer } from "@/components/overlay-layer";
 import { SaveSlots } from "@/components/save-slots";
-import { MenuHint, MenuNote, MenuPanel, MenuRow, setPill, StatsPill } from "@/components/play-ui";
+import { MenuHint, MenuNote, MenuPanel, MenuRow, setPill, StatsPill, useMenu } from "@/components/play-ui";
 import { hostSession } from "@/lib/host/session";
 import { useGameMode, useInitialFocus, useNavAction } from "@/lib/nav/react";
-import { useHost } from "@/lib/use-origin";
+import { Check, Copy } from "lucide-react";
+import { useOrigin } from "@/lib/use-origin";
 
 export function HostPlay() {
   const router = useRouter();
@@ -16,9 +17,10 @@ export function HostPlay() {
   const [canvasRef] = useState(() => ({ current: hostSession.getCanvas() }));
   const frameBoxRef = useRef<HTMLDivElement>(null);
   const pillRef = useRef<HTMLSpanElement>(null);
-  const [menuOpen, setMenuOpen] = useState(false);
+  const menu = useMenu();
+  const menuOpen = menu.open;
   const [error, setError] = useState<string | null>(null);
-  const host = useHost();
+  const origin = useOrigin();
   // After a refresh straight into /play, booting needs a click first, or the
   // game's AudioContext starts suspended.
   const [ready, setReady] = useState(() => typeof navigator === "undefined" || navigator.userActivation?.hasBeenActive !== false);
@@ -30,7 +32,7 @@ export function HostPlay() {
   }, []);
 
   useGameMode(!menuOpen && snap.running);
-  useNavAction("start", () => setMenuOpen((open) => !open), snap.running);
+  useNavAction("start", menu.toggle, snap.running);
 
   // Attach the session's canvas before children's effects (the overlay) measure it.
   const hasRom = !!snap.rom;
@@ -95,14 +97,16 @@ export function HostPlay() {
         )}
       </div>
 
-      {menuOpen && (
+      {menu.shown && (
         <HostMenu
+          closing={menu.closing}
+          onClosed={menu.onClosed}
           system={snap.rom.game.system}
           title={snap.rom.game.title}
           players={snap.players}
           spectators={snap.spectators}
-          inviteText={snap.code ? `Share ${host}/r/${snap.code}` : "Room is not open."}
-          onResume={() => setMenuOpen(false)}
+          inviteLink={snap.code ? `${origin}/r/${snap.code}` : null}
+          onResume={menu.close}
           onEnd={end}
         />
       )}
@@ -117,26 +121,49 @@ function HostMenu({
   title,
   players,
   spectators,
-  inviteText,
+  inviteLink,
   onResume,
   onEnd,
+  closing,
+  onClosed,
 }: {
+  closing: boolean;
+  onClosed: () => void;
   system: string;
   title: string;
   players: Parameters<typeof MenuPanel>[0]["players"];
   spectators: number;
-  inviteText: string;
+  inviteLink: string | null;
   onResume: () => void;
   onEnd: () => void;
 }) {
   const [note, setNote] = useState<string | null>(null);
   const [slots, setSlots] = useState<"save" | "load" | null>(null);
+  const [copied, setCopied] = useState(false);
+  const copyInvite = async () => {
+    if (!inviteLink) return setNote("The room isn't open yet.");
+    try {
+      await navigator.clipboard.writeText(inviteLink);
+      setCopied(true);
+      setNote(`Copied ${inviteLink.replace(/^https?:\/\//, "")}`);
+    } catch {
+      setNote(`Couldn't copy. Share ${inviteLink.replace(/^https?:\/\//, "")}`);
+    }
+  };
   const resume = () => {
     (document.activeElement as HTMLElement | null)?.blur();
     onResume();
   };
   return (
-    <MenuPanel system={system} title={title} players={players} spectators={spectators} onBack={resume}>
+    <MenuPanel
+      system={system}
+      title={title}
+      players={players}
+      spectators={spectators}
+      onBack={resume}
+      closing={closing}
+      onClosed={onClosed}
+    >
       {slots ? (
         <SaveSlots
           mode={slots}
@@ -155,7 +182,12 @@ function HostMenu({
           </MenuRow>
           <MenuRow onClick={() => setSlots("save")}>Save state</MenuRow>
           <MenuRow onClick={() => setSlots("load")}>Load state</MenuRow>
-          <MenuRow onClick={() => setNote(inviteText)}>Invite friends</MenuRow>
+          <MenuRow
+            onClick={() => void copyInvite()}
+            icon={copied ? <Check size={20} aria-hidden /> : <Copy size={20} aria-hidden />}
+          >
+            {copied ? "Link copied" : "Invite friends"}
+          </MenuRow>
           <MenuRow onClick={onEnd} danger>
             End session
           </MenuRow>

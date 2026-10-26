@@ -298,7 +298,12 @@ class HostSession {
     const rom = this.snapshot.rom;
     if (!emu || !rom) return;
     const save = (await listSaves(rom.file.name))[slot - 1];
-    if (save) await this.inTurn(() => emu.loadState(save.state));
+    if (!save) return;
+    // Nostalgist pauses with a toggle command and tracks the state itself, but
+    // RetroArch unpauses on its own when a state loads. Loading while paused
+    // would leave the two inverted, so run first: load always ends in play.
+    emu.resume();
+    await this.inTurn(() => emu.loadState(save.state));
   }
 
   /** Runs a state operation after the ones already queued. */

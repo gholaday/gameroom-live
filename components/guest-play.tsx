@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { OverlayLayer } from "@/components/overlay-layer";
-import { LatencyBreakdown, MenuHint, MenuPanel, MenuRow, setBreakdown, setPill, StatsPill } from "@/components/play-ui";
+import { LatencyBreakdown, MenuHint, MenuPanel, MenuRow, setBreakdown, setPill, StatsPill, useMenu } from "@/components/play-ui";
 import { statusText } from "@/components/guest-join";
 import { StreamVideo } from "@/components/stream-video";
 import { TouchPad } from "@/components/touch-pad";
@@ -21,7 +21,8 @@ export function GuestPlay({
   snap: GuestSnapshot;
   onLobby: () => void;
 }) {
-  const [menuOpen, setMenuOpen] = useState(false);
+  const menu = useMenu();
+  const menuOpen = menu.open;
   const pillRef = useRef<HTMLSpanElement>(null);
   const breakdownRef = useRef<HTMLDListElement>(null);
   const [details, setDetails] = useState(false);
@@ -31,7 +32,7 @@ export function GuestPlay({
   const onTouch = useCallback((mask: number) => session.setTouchButtons(mask), [session]);
 
   useGameMode(!menuOpen);
-  useNavAction("start", () => setMenuOpen((open) => !open));
+  useNavAction("start", menu.toggle);
 
   // Pill: estimated input-to-screen latency and decoded fps, once a second,
   // straight to the DOM. Buffer and decode times are per-frame deltas.
@@ -61,7 +62,7 @@ export function GuestPlay({
 
   const resume = () => {
     (document.activeElement as HTMLElement | null)?.blur();
-    setMenuOpen(false);
+    menu.close();
   };
 
   return (
@@ -101,7 +102,7 @@ export function GuestPlay({
           <>
             <button
               type="button"
-              onClick={() => setMenuOpen(true)}
+              onClick={menu.openMenu}
               className="absolute top-6 left-1/2 z-20 min-h-9 -translate-x-1/2 rounded-full bg-white/92 px-4 text-[13px] font-extrabold"
             >
               Menu
@@ -111,8 +112,10 @@ export function GuestPlay({
         )}
       </div>
 
-      {menuOpen && (
+      {menu.shown && (
         <MenuPanel
+          closing={menu.closing}
+          onClosed={menu.onClosed}
           system={snap.game?.system ?? ""}
           title={snap.game?.title ?? "Waiting for the host"}
           players={snap.players}
