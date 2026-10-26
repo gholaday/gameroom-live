@@ -83,6 +83,11 @@ export function chatText(raw: string) {
   return raw.replace(/\s+/g, " ").trim().slice(0, MAX_CHAT);
 }
 
+/** Someone joined or left the room. `slot` colors the name; 0 is a spectator. */
+export type PresenceEvent = { id: number; name: string; slot: number; joined: boolean };
+/** Presence events each side keeps; only new ones are ever shown. */
+export const PRESENCE_HISTORY = 10;
+
 /** Everyone who can point or draw: host is peer 0, guests 1..255. */
 export type OverlayPeer = { id: number; name: string; slot: number };
 
@@ -107,5 +112,7 @@ export type ControlMessage =
   | { t: "say"; text: string }
   /** Host to guests: a posted chat line, from anyone. */
   | { t: "chat"; line: ChatLine }
+  /** Host to guests: someone else joined or left. */
+  | { t: "presence"; event: PresenceEvent }
   | { t: "kicked" }
   | { t: "end" };

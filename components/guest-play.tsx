@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { OverlayLayer } from "@/components/overlay-layer";
-import { ChatToast, LatencyBreakdown, MenuHint, MenuPanel, MenuRow, setBreakdown, setPill, StatsPill, useMenu } from "@/components/play-ui";
+import { ChatToast, LatencyBreakdown, MenuHint, MenuPanel, PresenceToast, MenuRow, setBreakdown, setPill, StatsPill, useMenu } from "@/components/play-ui";
 import { statusText } from "@/components/guest-join";
 import { StreamVideo } from "@/components/stream-video";
 import { TouchPad } from "@/components/touch-pad";
@@ -98,7 +98,13 @@ export function GuestPlay({
           {playing ? `Player ${snap.slot}` : snap.claiming ? "Joining" : "Watching"}
         </span>
         <MenuHint show={!menuOpen && !touch} />
-        {!menu.shown && <ChatToast lines={snap.chat} />}
+        {!menu.shown && (
+          <>
+            <ChatToast lines={snap.chat} />
+            {/* The latency details sit where these would. */}
+            {!details && <PresenceToast events={snap.presence} />}
+          </>
+        )}
         {touch && !menuOpen && (
           <>
             <button

@@ -9,12 +9,14 @@ import {
   chatText,
   encodeInput,
   INPUT_BYTES,
+  PRESENCE_HISTORY,
   type ChatLine,
   type ControlMessage,
   type Game,
   type InputState,
   type OverlayPeer,
   type PlayerInfo,
+  type PresenceEvent,
 } from "@/lib/net/protocol";
 import type { OverlayController } from "@/lib/overlay/controller";
 import { peerIdFor } from "@/lib/net/room";
@@ -46,6 +48,8 @@ export type GuestSnapshot = {
   stream: MediaStream | null;
   /** Recent chat, oldest first. */
   chat: ChatLine[];
+  /** Others joining and leaving since we connected, oldest first. */
+  presence: PresenceEvent[];
 };
 
 export class GuestSession {
@@ -60,6 +64,7 @@ export class GuestSession {
     claiming: false,
     stream: null,
     chat: [],
+    presence: [],
   };
   private readonly listeners = new Set<() => void>();
   private peer: Peer | null = null;
@@ -288,6 +293,9 @@ export class GuestSession {
         break;
       case "chat":
         this.set({ chat: [...this.snapshot.chat, msg.line].slice(-CHAT_HISTORY) });
+        break;
+      case "presence":
+        this.set({ presence: [...this.snapshot.presence, msg.event].slice(-PRESENCE_HISTORY) });
         break;
       case "kicked":
         this.gen++;

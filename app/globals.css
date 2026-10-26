@@ -143,11 +143,11 @@ button {
   animation: fade-out 220ms ease forwards;
 }
 
-/* A chat line over the game: slides in from the right, holds, fades out. */
-@keyframes chat-toast {
+/* Toasts over the game: slide in from their side, hold, fade out. */
+@keyframes toast {
   from {
     opacity: 0;
-    transform: translateX(32px);
+    transform: translateX(var(--toast-from));
   }
   6%,
   85% {
@@ -156,11 +156,18 @@ button {
   }
   to {
     opacity: 0;
-    transform: translateX(12px);
+    transform: translateX(calc(var(--toast-from) * 0.4));
   }
 }
-.chat-toast {
-  animation: chat-toast 5s ease-out forwards;
+.toast-right,
+.toast-left {
+  animation: toast 5s ease-out forwards;
+}
+.toast-right {
+  --toast-from: 32px;
+}
+.toast-left {
+  --toast-from: -32px;
 }
 
 @media (prefers-reduced-motion: reduce) {

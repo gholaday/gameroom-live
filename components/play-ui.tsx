@@ -4,7 +4,7 @@ import { forwardRef, useEffect, useRef, useState, type ReactNode } from "react";
 import { Pencil, Send } from "lucide-react";
 import { Avatar, Dot, Hint, HintBar, latencyClass, type PlayerSlot } from "@/components/ui";
 import { MAX_NAME } from "@/lib/identity";
-import { chatText, MAX_CHAT, type ChatLine, type PlayerInfo } from "@/lib/net/protocol";
+import { chatText, MAX_CHAT, type ChatLine, type PlayerInfo, type PresenceEvent } from "@/lib/net/protocol";
 import { useInitialFocus, useNavAction } from "@/lib/nav/react";
 
 /**
@@ -345,35 +345,72 @@ function ChatBox({ lines, onSend }: { lines: ChatLine[]; onSend: (text: string) 
   );
 }
 
-/** Most chat lines shown over the game at once. */
+/** Most toasts shown on one side at once. */
 const MAX_TOASTS = 5;
 
 /**
- * New chat lines over the game while the menu is closed, stacking down the
- * screen. Each slides in, holds, fades out, then leaves the stack. Lines that
- * were already there when it mounted stay hidden.
+ * New items over the game while the menu is closed, stacking down the screen.
+ * Each slides in from its side, holds, fades out, then leaves the stack.
+ * Items that were already there when it mounted stay hidden.
  */
-export function ChatToast({ lines }: { lines: ChatLine[] }) {
-  const [seen] = useState(() => lines.at(-1)?.id ?? 0);
+function ToastStack<T extends { id: number }>({
+  items,
+  side,
+  children,
+}: {
+  items: T[];
+  side: "left" | "right";
+  children: (item: T) => ReactNode;
+}) {
+  const [seen] = useState(() => items.at(-1)?.id ?? 0);
   const [gone, setGone] = useState<ReadonlySet<number>>(() => new Set());
-  const shown = lines.filter((l) => l.id > seen && !gone.has(l.id)).slice(-MAX_TOASTS);
+  const shown = items.filter((i) => i.id > seen && !gone.has(i.id)).slice(-MAX_TOASTS);
   if (!shown.length) return null;
   return (
     <ol
       aria-hidden
-      className="pointer-events-none absolute top-[70px] right-6 z-10 flex max-w-[min(380px,calc(100%-48px))] flex-col items-end gap-2"
+      className={`pointer-events-none absolute top-[70px] z-10 flex max-w-[min(380px,calc(50%-36px))] flex-col gap-2 ${
+        side === "right" ? "right-6 items-end" : "left-6 items-start"
+      }`}
     >
-      {shown.map((l) => (
+      {shown.map((item) => (
         <li
-          key={l.id}
-          onAnimationEnd={() => setGone((g) => new Set(g).add(l.id))}
-          className="chat-toast rounded-2xl bg-white/92 px-4 py-2.5 text-sm leading-snug break-words shadow-soft"
+          key={item.id}
+          onAnimationEnd={() => setGone((g) => new Set(g).add(item.id))}
+          className={`${side === "right" ? "toast-right" : "toast-left"} rounded-2xl bg-white/92 px-4 py-2.5 text-sm leading-snug break-words shadow-soft`}
         >
-          <span className={`font-extrabold ${NAME_COLOR[l.slot] ?? NAME_COLOR[0]}`}>{l.name}</span>{" "}
-          <span className="font-semibold text-text">{l.text}</span>
+          {children(item)}
         </li>
       ))}
     </ol>
+  );
+}
+
+/** New chat lines, on the right. */
+export function ChatToast({ lines }: { lines: ChatLine[] }) {
+  return (
+    <ToastStack items={lines} side="right">
+      {(l) => (
+        <>
+          <span className={`font-extrabold ${NAME_COLOR[l.slot] ?? NAME_COLOR[0]}`}>{l.name}</span>{" "}
+          <span className="font-semibold text-text">{l.text}</span>
+        </>
+      )}
+    </ToastStack>
+  );
+}
+
+/** Others joining and leaving, on the left. */
+export function PresenceToast({ events }: { events: PresenceEvent[] }) {
+  return (
+    <ToastStack items={events} side="left">
+      {(e) => (
+        <>
+          <span className={`font-extrabold ${NAME_COLOR[e.slot] ?? NAME_COLOR[0]}`}>{e.name}</span>{" "}
+          <span className="font-semibold text-text-muted">{e.joined ? "joined" : "left"}</span>
+        </>
+      )}
+    </ToastStack>
   );
 }
 

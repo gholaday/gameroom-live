@@ -22,12 +22,14 @@ import {
   chatText,
   decodeInput,
   seqNewer,
+  PRESENCE_HISTORY,
   type ChatLine,
   type ControlMessage,
   type Game,
   type InputState,
   type OverlayPeer,
   type PlayerInfo,
+  type PresenceEvent,
 } from "@/lib/net/protocol";
 import { MAX_GUESTS, newRoomCode, peerIdFor } from "@/lib/net/room";
 import type { OverlayController } from "@/lib/overlay/controller";
@@ -85,6 +87,8 @@ export type HostSnapshot = {
   running: boolean;
   /** Recent chat, oldest first. */
   chat: ChatLine[];
+  /** Recent joins and leaves, oldest first. */
+  presence: PresenceEvent[];
 };
 
 class HostSession {
@@ -101,8 +105,10 @@ class HostSession {
     restored: false,
     running: false,
     chat: [],
+    presence: [],
   };
   private chatId = 0;
+  private presenceId = 0;
   private readonly listeners = new Set<() => void>();
   private peer: Peer | null = null;
   private readonly guests = new Map<string, Guest>();
@@ -406,7 +412,7 @@ class HostSession {
     this.resumeState = null;
     this.timers = [];
     this.peers = [];
-    this.set({ status: "idle", code: null, players: [], spectators: 0, guests: [], rom: null, resuming: false, running: false, chat: [] });
+    this.set({ status: "idle", code: null, players: [], spectators: 0, guests: [], rom: null, resuming: false, running: false, chat: [], presence: [] });
   }
 
   // ---------- Player management ----------
@@ -569,6 +575,8 @@ class HostSession {
         // Everyone gets the stream, players and spectators alike.
         if (this.stream) void this.sendMedia(guest);
         this.publishPlayers();
+        // A reload taking over its old connection isn't news.
+        if (!old) this.announce(guest, true);
         break;
       }
       case "name":
@@ -639,8 +647,19 @@ class HostSession {
   private drop(guest: Guest) {
     this.release(guest);
     if (!guest.forget && guest.token) this.reservations.hold(guest.token, guest.slot, performance.now());
+    // Not in the map any more means a reload already took its place.
+    const stillHere = this.guests.get(guest.id) === guest;
     this.guests.delete(guest.id);
     this.publishPlayers();
+    // No token means it never said hello, so no one saw it join.
+    if (stillHere && guest.token) this.announce(guest, false);
+  }
+
+  /** Tells the host and everyone else (not the guest itself) that a guest joined or left. */
+  private announce(guest: Guest, joined: boolean) {
+    const event: PresenceEvent = { id: ++this.presenceId, name: guest.name, slot: guest.slot, joined };
+    this.set({ presence: [...this.snapshot.presence, event].slice(-PRESENCE_HISTORY) });
+    for (const g of this.guests.values()) if (g !== guest) g.link.sendControl({ t: "presence", event });
   }
 
   private async sendMedia(guest: Guest) {

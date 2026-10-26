@@ -4,7 +4,7 @@ import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } fr
 import { useRouter } from "next/navigation";
 import { OverlayLayer } from "@/components/overlay-layer";
 import { SaveSlots } from "@/components/save-slots";
-import { ChatToast, MenuHint, MenuNote, MenuPanel, MenuRow, setPill, StatsPill, useMenu } from "@/components/play-ui";
+import { ChatToast, MenuHint, PresenceToast, MenuNote, MenuPanel, MenuRow, setPill, StatsPill, useMenu } from "@/components/play-ui";
 import { hostSession } from "@/lib/host/session";
 import type { ChatLine } from "@/lib/net/protocol";
 import { useGameMode, useInitialFocus, useNavAction } from "@/lib/nav/react";
@@ -90,7 +90,12 @@ export function HostPlay() {
         )}
         {!ready && <ContinueButton title={snap.rom.game.title} onClick={() => setReady(true)} />}
         <StatsPill ref={pillRef} />
-        {!menu.shown && <ChatToast lines={snap.chat} />}
+        {!menu.shown && (
+          <>
+            <ChatToast lines={snap.chat} />
+            <PresenceToast events={snap.presence} />
+          </>
+        )}
         <MenuHint show={!menuOpen && snap.running} />
         {error && (
           <p className="absolute bottom-16 rounded-full bg-white/92 px-4 py-2 text-sm font-bold text-danger">
