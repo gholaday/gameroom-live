@@ -348,8 +348,8 @@ function ChatBox({ lines, onSend }: { lines: ChatLine[]; onSend: (text: string) 
           aria-label="Send"
           className="ring-row flex h-11 w-11 flex-none items-center justify-center rounded-full bg-primary-text text-white"
         >
-          {/* The plane's weight sits low and left of its box; nudge it to look centered. */}
-          <Send size={17} aria-hidden className="translate-x-px -translate-y-px" />
+          {/* The plane's point pulls the eye up and right; nudge it back to look centered. */}
+          <Send size={17} aria-hidden className="-translate-x-px translate-y-px" />
         </button>
       </form>
     </section>
