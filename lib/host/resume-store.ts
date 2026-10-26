@@ -5,10 +5,12 @@
 export type ResumeRecord = {
   romName: string;
   rom: Blob;
+  /** Files the ROM needs beside it: a disc's tracks. */
+  extra: File[];
   state: Blob | null;
 };
 
-type RomEntry = { romName: string; rom: Blob };
+type RomEntry = { romName: string; rom: Blob; extra?: File[] };
 
 const DB = "gameroom";
 const STORE = "resume";
@@ -60,17 +62,17 @@ export async function loadResume(): Promise<ResumeRecord | null> {
     const rom = (await idb(STORE, "readonly", (s) => s.get(ROM_KEY))) as RomEntry | undefined;
     if (!rom) return null;
     const state = ((await idb(STORE, "readonly", (s) => s.get(STATE_KEY))) as Blob | undefined) ?? null;
-    return { ...rom, state };
+    return { ...rom, extra: rom.extra ?? [], state };
   } catch {
     return null;
   }
 }
 
-/** A new game: store its ROM and forget the old state. */
-export async function saveResumeRom(romName: string, rom: Blob) {
+/** A new game: store its ROM (and its tracks, for a disc) and forget the old state. */
+export async function saveResumeRom(romName: string, rom: Blob, extra: File[] = []) {
   try {
     await idb(STORE, "readwrite", (s) => s.delete(STATE_KEY));
-    await idb(STORE, "readwrite", (s) => s.put({ romName, rom } satisfies RomEntry, ROM_KEY));
+    await idb(STORE, "readwrite", (s) => s.put({ romName, rom, extra } satisfies RomEntry, ROM_KEY));
   } catch {}
 }
 

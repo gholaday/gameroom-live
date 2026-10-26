@@ -9,6 +9,7 @@ const REPOS: Record<SystemId, string> = {
   nes: "Nintendo_-_Nintendo_Entertainment_System",
   genesis: "Sega_-_Mega_Drive_-_Genesis",
   n64: "Nintendo_-_Nintendo_64",
+  ps1: "Sony_-_PlayStation",
   gb: "Nintendo_-_Game_Boy",
   gba: "Nintendo_-_Game_Boy_Advance",
 };

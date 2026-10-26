@@ -1,5 +1,7 @@
 import { idb } from "@/lib/host/resume-store";
 import {
+  cueTracks,
+  dirOf,
   fileName,
   mergeEntries,
   withoutDiscTracks,
@@ -114,12 +116,10 @@ class Library {
   /** Copies ROMs in: a folder from `<input webkitdirectory>`, or single files. */
   async importFiles(files: Iterable<File>) {
     const added: { path: string; kind: "copy" }[] = [];
-    const named = withoutDiscTracks(
-      [...files].map((file) => ({
-        file,
-        path: file.webkitRelativePath || file.name,
-      })),
-    );
+    const all = [...files].map((file) => ({ file, path: file.webkitRelativePath || file.name }));
+    const named = withoutDiscTracks(all);
+    // A disc's tracks aren't games of their own, but its .cue needs them stored too.
+    for (const track of all) if (!named.includes(track)) await put(fileKey(track.path), track.file);
     for (const { file, path } of named) {
       if (!mergeEntries([], [{ path, kind: "copy" }]).length) continue;
       await put(fileKey(path), file);
@@ -131,6 +131,23 @@ class Library {
     this.set({ entries });
     await put(ENTRIES_KEY, entries);
     return added.length;
+  }
+
+  /**
+   * The entry's file, plus the track files a .cue names (read from beside it).
+   * Must run from a click: may ask the browser for folder access again.
+   */
+  async files(entry: LibraryEntry): Promise<{ file: File; extra: File[] }> {
+    const file = await this.file(entry);
+    if (!/\.cue$/i.test(file.name)) return { file, extra: [] };
+    const extra = await Promise.all(
+      cueTracks(await file.text()).map((name) =>
+        this.file({ ...entry, path: dirOf(entry.path) + name }).catch(() => {
+          throw new Error(`${name} is missing. Keep a game's .bin files next to its .cue.`);
+        }),
+      ),
+    );
+    return { file, extra };
   }
 
   /** Must run from a click: may ask the browser for folder access again. */
@@ -163,7 +180,14 @@ class Library {
       (e) => fileName(e.path) !== name,
     );
     this.set({ entries });
-    if (entry.kind === "copy") await del(fileKey(entry.path));
+    if (entry.kind === "copy") {
+      // A copied disc's tracks go with it.
+      const tracks = /\.cue$/i.test(name)
+        ? await this.file(entry).then((f) => f.text()).then(cueTracks, () => [])
+        : [];
+      for (const track of tracks) await del(fileKey(dirOf(entry.path) + track));
+      await del(fileKey(entry.path));
+    }
     else {
       this.hidden.add(name);
       await put(HIDDEN_KEY, [...this.hidden]);

@@ -3,7 +3,7 @@ import type { RetroPadButton } from "@/lib/net/protocol";
 // Everything that differs between systems. The stream, input protocol,
 // overlay and reconnect logic are the same for all of them.
 
-export type SystemId = "snes" | "nes" | "genesis" | "n64" | "gb" | "gba";
+export type SystemId = "snes" | "nes" | "genesis" | "n64" | "ps1" | "gb" | "gba";
 
 /** A face button as the console labels it, and the RetroPad button the core reads. */
 export type PadButton = { button: RetroPadButton; label: string };
@@ -87,6 +87,26 @@ export const SYSTEMS: Record<SystemId, System> = {
       { button: "b", label: "A" },
     ],
     shoulders: true,
+  },
+  ps1: {
+    id: "ps1",
+    name: "PlayStation",
+    core: "pcsx_rearmed",
+    // A .cue with its .bin tracks beside it, or a single-file image.
+    extensions: ["cue", "chd", "pbp"],
+    size: { width: 640, height: 480 },
+    players: 2,
+    // RetroPad Y, B, A, X are Square, Cross, Circle, Triangle.
+    face: [
+      { button: "y", label: "□" },
+      { button: "b", label: "✕" },
+      { button: "a", label: "○" },
+      { button: "x", label: "△" },
+    ],
+    shoulders: true,
+    // Games switch between widths (256 to 640) that a TV always showed at 4:3,
+    // so square pixels would squash or stretch them.
+    config: { aspect_ratio_index: 0 },
   },
   gb: {
     id: "gb",

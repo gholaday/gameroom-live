@@ -13,6 +13,7 @@ overlay, reconnect, library) is shared.
 | NES | fceumm | 512x480 (2x) | 4, Four Score by checksum |
 | Genesis | genesis_plus_gx | 640x448 (2x) | 2 |
 | N64 | mupen64plus_next | 640x480 | 4 (guest sticks not yet) |
+| PlayStation | pcsx_rearmed | 640x480, 4:3 | 2 |
 | Game Boy / Color | gambatte | 480x432 (3x) | 1 |
 | Game Boy Advance | mgba | 720x480 (3x) | 1 |
 
@@ -35,8 +36,12 @@ overlay, reconnect, library) is shared.
   real stick through RetroArch's gamepad input. Guests' input goes in as
   keyboard presses, so their sticks don't drive the N64 stick yet, and the
   touch pad has no Z or C buttons.
-- Not supported: PS1 (pcsx_rearmed exists; disc images and BIOS need their
-  own work). A PS1 folder's `.bin`
+- PS1: pcsx_rearmed, no BIOS needed (its built-in replacement boots games).
+  A disc is one library entry, its `.cue` (or a single `.chd`/`.pbp`); the
+  `.bin` tracks the `.cue` names are read from beside it, stored with copied
+  libraries, and saved with the resume record. ROM files go to Nostalgist as
+  `{ fileName, fileContent }`: a bare File gets a random name, and the `.cue`
+  has to find its tracks by name. Shown at 4:3, since games switch widths. A PS1 folder's `.bin`
   tracks are skipped when a `.cue` or other disc index sits beside them, and a
   `.bin` over 16 MB opened by hand is refused as a CD image.
 
@@ -56,7 +61,7 @@ COEP. If the image is missing, the generated initials tile stays.
   image.
 - Nostalgist saves and loads through one shared state file, so overlapping
   operations clobber each other. All state operations (slot save, slot load,
-  10 s autosave) run one at a time through a queue in the host session.
+  once-a-minute autosave) run one at a time through a queue in the host session.
 - RetroArch handles save and load commands in its frame loop. A hidden or
   unpainted tab runs no frames, so state operations wait. Autosave skips hidden
   tabs, and the save-on-hide from milestone 3 is gone for this reason.

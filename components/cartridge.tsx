@@ -82,6 +82,22 @@ const SHAPES: Record<SystemId, Shape> = {
     details: lines(12, 4, (y) => `M3 ${18 + y}H9M107 ${18 + y}H113`, "#7E7E85", 1),
     initials: "text-2xl",
   },
+  // CD jewel case, 142 x 125: the hinge down the left, the cover behind the lid.
+  ps1: {
+    w: 142,
+    h: 125,
+    body: "M2 0H140Q142 0 142 2V123Q142 125 140 125H2Q0 125 0 123V2Q0 0 2 0Z",
+    fill: "#D9D9DE",
+    label: { x: 12, y: 4, w: 126, h: 117, r: 1 },
+    recess: "#C4C4CA",
+    details: (
+      <>
+        <path d="M0 0H8V125H0Z" fill="#B9B9C0" />
+        {lines(9, 13, (y) => `M2 ${8 + y}H6`, "#A3A3AA", 1.6)}
+      </>
+    ),
+    initials: "text-3xl",
+  },
   // Handheld cart, 57 x 65: clipped top corner, ridged grip, arrow at the base.
   gb: {
     w: 57,

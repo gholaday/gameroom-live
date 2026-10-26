@@ -47,8 +47,12 @@ const INPUT_TIMEOUT_MS = 250;
 const SLOT_HOLD_MS = 60_000;
 /** Largest Genesis cartridge, with room to spare; bigger .bin files are CD images. */
 const MAX_GENESIS_BYTES = 16 * 1024 * 1024;
-/** Save a resume state this often while playing. */
-const AUTOSAVE_MS = 10_000;
+/**
+ * Save a resume state this often while playing. Each save stalls the core for
+ * a moment (about 250 ms for a PS1 game), so keep it rare: a crash or refresh
+ * loses at most this much play.
+ */
+const AUTOSAVE_MS = 60_000;
 
 type Guest = {
   id: string;
@@ -81,7 +85,8 @@ export type HostSnapshot = {
   spectators: number;
   /** Everyone connected, players and spectators. */
   guests: GuestInfo[];
-  rom: { file: File; game: Game; system: System } | null;
+  /** `extra`: files the ROM needs beside it, such as a disc's .bin tracks. */
+  rom: { file: File; extra: File[]; game: Game; system: System } | null;
   /** True when the ROM came from a resume record and will boot from its state. */
   resuming: boolean;
   /** False until the resume record has been checked, so /play doesn't flash "No game". */
@@ -206,24 +211,27 @@ class HostSession {
     const rec = await loadResume();
     if (rec && !this.snapshot.rom) {
       this.resumeState = rec.state;
-      this.setRom(new File([rec.rom], rec.romName), { persist: false });
+      this.setRom(new File([rec.rom], rec.romName), { persist: false, extra: rec.extra });
     }
     this.set({ restored: true, resuming: !!rec?.state && !this.snapshot.running });
   }
 
-  setRom(file: File, { persist = true } = {}): string | null {
+  setRom(file: File, { persist = true, extra = [] as File[] } = {}): string | null {
     if (this.emu || this.booting) return "End the current game first.";
     const found = gameForFile(file.name);
     if (!found) return `That file type isn't supported. Supported: ${ROM_ACCEPT.replaceAll(",", ", ")}.`;
     if (found.system.id === "genesis" && file.size > MAX_GENESIS_BYTES) {
       return "That looks like a CD image, not a Genesis cartridge. Disc games aren't supported yet.";
     }
+    if (/\.cue$/i.test(file.name) && !extra.length) {
+      return "A .cue needs its .bin files. Add the game's folder to the library instead.";
+    }
     const { game, system } = found;
     if (persist) {
       this.resumeState = null;
-      void saveResumeRom(file.name, file);
+      void saveResumeRom(file.name, file, extra);
     }
-    this.set({ rom: { file, game, system }, resuming: false });
+    this.set({ rom: { file, extra, game, system }, resuming: false });
     return null;
   }
 
@@ -262,7 +270,9 @@ class HostSession {
     const { Nostalgist } = await import("nostalgist");
     const emu = await Nostalgist.launch({
       core,
-      rom: rom.file,
+      // Named objects: Nostalgist gives a bare File a random name, and a disc's
+      // .cue must find its tracks by name in the same folder.
+      rom: [rom.file, ...rom.extra].map((f) => ({ fileName: f.name, fileContent: f })),
       element: canvas,
       size,
       ...selfHostedCores,
@@ -314,7 +324,7 @@ class HostSession {
   }
 
   // No save on hide: a hidden tab stops RetroArch's frame loop, which is what
-  // processes the save command. The 10 s autosave has run recently anyway.
+  // processes the save command. The once-a-minute autosave covers it.
   private onHidden = () => {
     // The browser drops wake locks when the tab is hidden; take it again on return.
     if (!document.hidden) this.keepAwake();

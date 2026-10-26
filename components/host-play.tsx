@@ -265,7 +265,7 @@ function CrashNotice({ message }: { message: string }) {
       <div className="flex max-w-[380px] flex-col items-center gap-3 rounded-card bg-surface p-6 text-center shadow-lift">
         <h2 className="text-lg font-extrabold">The game stopped working</h2>
         <p className="text-sm font-semibold text-text-muted">
-          The emulator crashed. Reloading picks up from the last autosave, a few seconds back.
+          The emulator crashed. Reloading picks up from the last autosave, up to a minute back.
         </p>
         <p className="text-xs font-semibold break-words text-text-muted select-text">{message}</p>
         <button

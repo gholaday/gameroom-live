@@ -1,7 +1,7 @@
 {
   "repo": "arianrhodsandlot/retroarch-emscripten-build",
   "version": "v1.22.2",
-  "cores": ["snes9x", "fceumm", "genesis_plus_gx", "gambatte", "mgba", "mupen64plus_next"],
+  "cores": ["snes9x", "fceumm", "genesis_plus_gx", "gambatte", "mgba", "mupen64plus_next", "pcsx_rearmed"],
   "sources": {
     "mupen64plus_next": "npm/retroassembly-custom-cores@1.22.2-20260719172358/dist/cores"
   }

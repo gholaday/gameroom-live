@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { gameTitle, mergeEntries, withoutDiscTracks } from "./entries";
+import { cueTracks, gameTitle, mergeEntries, withoutDiscTracks } from "./entries";
 
 describe("gameTitle", () => {
   it("drops the extension and tags, and puts a trailing article back in front", () => {
@@ -36,5 +36,17 @@ describe("withoutDiscTracks", () => {
       "roms/Spyro (USA)/Spyro (USA).cue",
       "roms/Sonic (USA).bin",
     ]);
+  });
+});
+
+describe("cueTracks", () => {
+  it("lists each FILE once, quoted or not", () => {
+    const cue = [
+      'FILE "Game (Track 1).bin" BINARY',
+      "  TRACK 01 MODE2/2352",
+      "FILE track2.bin BINARY",
+      'FILE "Game (Track 1).bin" BINARY',
+    ].join(String.fromCharCode(13, 10));
+    expect(cueTracks(cue)).toEqual(["Game (Track 1).bin", "track2.bin"]);
   });
 });

@@ -177,7 +177,8 @@ export function HostHome() {
     if (snap.running)
       return setNote("A game is running. End the session to pick another.");
     try {
-      setNote(hostSession.setRom(await library.file(entry)));
+      const { file, extra } = await library.files(entry);
+      setNote(hostSession.setRom(file, { extra }));
     } catch (e) {
       setNote(e instanceof Error ? e.message : String(e));
     }

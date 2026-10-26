@@ -22,7 +22,7 @@
   so each attempt has an 8 s deadline. After the host reloads (which forgets
   slots), a guest that had a slot asks for one again.
 - Resume lives in IndexedDB (`gameroom` db, `resume` store). The ROM and the
-  save state are separate keys, so the 10 s autosave rewrites only the state
+  save state are separate keys, so the autosave (once a minute) rewrites only the state
   (a few hundred KB), never the multi-MB ROM. It also saves when the tab is
   hidden. Ending the session on purpose clears it.
 - A refresh straight into `/play` shows a Continue button before booting,

@@ -58,7 +58,7 @@ All systems use the libretro **RetroPad** abstraction, so the input protocol is 
 7. When the host leaves, the session ends. There is no host handoff.
    - **Grace period:** if the host drops unexpectedly (refresh, crash, Wi-Fi blip), guests see "Waiting for host…" for ~30 s and keep their slots.
    - **Host rejoin:** the host's browser remembers the room ID (sessionStorage), so reopening the page reclaims the same room and link.
-   - **Resume:** the host auto-saves a state to IndexedDB every ~10 s and on `pagehide`, so a rejoin resumes near where play stopped.
+   - **Resume:** the host auto-saves a state to IndexedDB about once a minute (each save briefly stalls the core), so a rejoin resumes near where play stopped.
    - **Deliberate exit:** an explicit "End session" button skips the grace period.
    - If the host doesn't return in time, guests see "Host ended the session" and the room link stops working.
 

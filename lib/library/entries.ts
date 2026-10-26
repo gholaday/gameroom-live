@@ -17,7 +17,7 @@ export function gameTitle(fileName: string) {
 export const fileName = (path: string) => path.split("/").pop()!;
 
 const DISC_INDEX = /\.(cue|ccd|toc|m3u|chd|iso)$/i;
-const dirOf = (path: string) => path.slice(0, path.lastIndexOf("/") + 1);
+export const dirOf = (path: string) => path.slice(0, path.lastIndexOf("/") + 1);
 
 /**
  * Drops .bin files that sit beside a disc index (a .cue and the like): those
@@ -30,7 +30,11 @@ export function withoutDiscTracks<T extends { path: string }>(files: T[]): T[] {
   return files.filter((f) => !(/\.bin$/i.test(f.path) && discDirs.has(dirOf(f.path))));
 }
 
-/** Keeps ROMs only, one per file name
+/** The track files a .cue sheet names, in order: `FILE "Game (Track 1).bin" BINARY`. */
+export function cueTracks(cue: string): string[] {
+  const names = [...cue.matchAll(/^\s*FILE\s+(?:"([^"]+)"|(\S+))/gim)].map((m) => m[1] ?? m[2]);
+  return [...new Set(names)];
+}
 
 /**
  * Keeps ROMs only, one per file name (the same ROM opened by hand and found in
