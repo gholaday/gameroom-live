@@ -1,5 +1,5 @@
 import { idb } from "@/lib/host/resume-store";
-import { mergeEntries, type LibraryEntry } from "@/lib/library/entries";
+import { mergeEntries, withoutDiscTracks, type LibraryEntry } from "@/lib/library/entries";
 
 // The host's ROM library, kept across browser restarts. Chromium saves the
 // folder handle itself in IndexedDB and reads ROMs from disk on demand; other
@@ -83,8 +83,8 @@ class Library {
   /** Copies ROMs in: a folder from `<input webkitdirectory>`, or single files. */
   async importFiles(files: Iterable<File>) {
     const added: { path: string; kind: "copy" }[] = [];
-    for (const file of files) {
-      const path = file.webkitRelativePath || file.name;
+    const named = withoutDiscTracks([...files].map((file) => ({ file, path: file.webkitRelativePath || file.name })));
+    for (const { file, path } of named) {
       if (!mergeEntries([], [{ path, kind: "copy" }]).length) continue;
       await put(fileKey(path), file);
       added.push({ path, kind: "copy" });
@@ -141,7 +141,7 @@ class Library {
     const found: { path: string; kind: "dir" }[] = [];
     await walk(dir, dir.name, found);
     const copies = this.snapshot.entries.filter((e) => e.kind === "copy");
-    const entries = mergeEntries(copies, found);
+    const entries = mergeEntries(copies, withoutDiscTracks(found));
     this.set({ entries });
     await put(ENTRIES_KEY, entries);
   }

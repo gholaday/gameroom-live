@@ -42,7 +42,10 @@ export function GuestJoin({ code }: { code: string }) {
   const connected = snap.status === "connected";
   // Before the host starts a game we don't know the system; assume it has room.
   const maxPlayers = snap.game?.maxPlayers ?? SLOTS.length;
-  const canPlay = connected && maxPlayers > 1;
+  const taken = new Set(snap.players.map((p) => p.slot));
+  // Every controller is in use: watching is the only way in until someone leaves.
+  const full = !snap.slot && SLOTS.slice(0, maxPlayers).every((s) => taken.has(s));
+  const canPlay = connected && maxPlayers > 1 && !full;
   const play = (mode: InputMode) => {
     session.claim(mode);
     setView("play");
@@ -60,7 +63,6 @@ export function GuestJoin({ code }: { code: string }) {
     return <GuestPlay session={session} snap={snap} onLobby={() => setView("lobby")} />;
   }
 
-  const taken = new Set(snap.players.map((p) => p.slot));
   const mySlot = snap.slot || (SLOTS.find((s) => !taken.has(s)) ?? 0);
 
   return (
@@ -116,7 +118,7 @@ export function GuestJoin({ code }: { code: string }) {
         </div>
 
         <div className="flex flex-wrap justify-center gap-3">
-          {maxPlayers > 1 ? (
+          {canPlay || (!connected && maxPlayers > 1) ? (
             <>
               <PillButton disabled={!connected} onClick={() => play("touch")}>
                 Touch controls
@@ -126,7 +128,9 @@ export function GuestJoin({ code }: { code: string }) {
               </PillButton>
             </>
           ) : (
-            <p className="self-center text-sm font-bold text-text-muted">This is a 1-player game. You can watch.</p>
+            <p className="self-center text-sm font-bold text-text-muted">
+              {maxPlayers > 1 ? "Every player spot is taken. You can watch." : "This is a 1-player game. You can watch."}
+            </p>
           )}
           <PillButton onClick={() => setShowControls((v) => !v)}>{showControls ? "Hide controls" : "Controls"}</PillButton>
           <button
@@ -156,7 +160,7 @@ export function GuestJoin({ code }: { code: string }) {
         }
         hints={
           <>
-            <Hint button="A">Join</Hint>
+            {canPlay && <Hint button="A">Join</Hint>}
             <Hint button="B">Just watch</Hint>
           </>
         }

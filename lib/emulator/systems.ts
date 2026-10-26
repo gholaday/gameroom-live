@@ -49,7 +49,9 @@ export const SYSTEMS: Record<SystemId, System> = {
     core: "fceumm",
     extensions: ["nes"],
     size: { width: 512, height: 480 },
-    players: 2,
+    // fceumm turns the Four Score on for 4-player games it knows by checksum;
+    // other games just ignore players 3 and 4.
+    players: 4,
     face: [
       { button: "b", label: "B" },
       { button: "a", label: "A" },

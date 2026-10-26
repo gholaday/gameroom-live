@@ -16,6 +16,22 @@ export function gameTitle(fileName: string) {
 
 const fileName = (path: string) => path.split("/").pop()!;
 
+const DISC_INDEX = /\.(cue|ccd|toc|m3u|chd|iso)$/i;
+const dirOf = (path: string) => path.slice(0, path.lastIndexOf("/") + 1);
+
+/**
+ * Drops .bin files that sit beside a disc index (a .cue and the like): those
+ * are CD tracks, a PS1 game say, not Genesis carts that happen to share the
+ * extension.
+ */
+export function withoutDiscTracks<T extends { path: string }>(files: T[]): T[] {
+  const discDirs = new Set(files.filter((f) => DISC_INDEX.test(f.path)).map((f) => dirOf(f.path)));
+  if (!discDirs.size) return files;
+  return files.filter((f) => !(/\.bin$/i.test(f.path) && discDirs.has(dirOf(f.path))));
+}
+
+/** Keeps ROMs only, one per file name
+
 /**
  * Keeps ROMs only, one per file name (the same ROM opened by hand and found in
  * a folder, or a folder added twice), later entries winning. Sorted by title.

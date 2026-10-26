@@ -45,6 +45,8 @@ const STREAM_MAX_BITRATE = 4_000_000;
 const INPUT_TIMEOUT_MS = 250;
 /** A dropped player's slot waits this long for them to reconnect. */
 const SLOT_HOLD_MS = 60_000;
+/** Largest Genesis cartridge, with room to spare; bigger .bin files are CD images. */
+const MAX_GENESIS_BYTES = 16 * 1024 * 1024;
 /** Save a resume state this often while playing. */
 const AUTOSAVE_MS = 10_000;
 
@@ -210,6 +212,9 @@ class HostSession {
     if (this.emu || this.booting) return "End the current game first.";
     const found = gameForFile(file.name);
     if (!found) return `That file type isn't supported. Supported: ${ROM_ACCEPT.replaceAll(",", ", ")}.`;
+    if (found.system.id === "genesis" && file.size > MAX_GENESIS_BYTES) {
+      return "That looks like a CD image, not a Genesis cartridge. Disc games aren't supported yet.";
+    }
     const { game, system } = found;
     if (persist) {
       this.resumeState = null;

@@ -10,7 +10,7 @@ overlay, reconnect, library) is shared.
 | System | Core | Stream | Players |
 |---|---|---|---|
 | SNES | snes9x | 512x448 (2x) | 4, multitap in port 2 |
-| NES | fceumm | 512x480 (2x) | 2 |
+| NES | fceumm | 512x480 (2x) | 4, Four Score by checksum |
 | Genesis | genesis_plus_gx | 640x448 (2x) | 2 |
 | Game Boy / Color | gambatte | 480x432 (3x) | 1 |
 | Game Boy Advance | mgba | 720x480 (3x) | 1 |
@@ -21,7 +21,17 @@ overlay, reconnect, library) is shared.
   pad shows the console's own labels.
 - Players 3 and 4 are bound to the number pad and the digit row. Nostalgist
   already turns off the RetroArch hotkeys those could hit.
-- NES Four Score and Genesis 4-way play aren't set up yet, so those stay at 2.
+- NES: fceumm plugs in the Four Score for 4-player games it knows by CRC
+  (`fourscore_db_list`) when ports 3 and 4 are on Auto. Other games ignore
+  players 3 and 4, so NES always offers 4 slots.
+- Genesis stays at 2. Team Player and EA 4-Way Play exist in genesis_plus_gx
+  (device ids 1537 and 1025, from its libretro.c), but nothing detects which a
+  game wants, and the wrong one can unplug player 1. Skipped for now.
+- Not supported: N64 (no web build of mupen64plus_next or parallel_n64 in the
+  RetroArch 1.22.2 emscripten cores or the nightlies) and PS1 (pcsx_rearmed
+  exists; disc images and BIOS need their own work). A PS1 folder's `.bin`
+  tracks are skipped when a `.cue` or other disc index sits beside them, and a
+  `.bin` over 16 MB opened by hand is refused as a CD image.
 
 ## Cover art
 
@@ -72,3 +82,25 @@ COEP. If the image is missing, the generated initials tile stays.
   doesn't count as a fresh press when navigation resumes.
 - Untested: the host's controller mapping assumes RetroArch's web gamepad
   driver uses Standard Gamepad button indices for `input_player1_*_btn`.
+
+## Home, chat and rooms (after milestone 5)
+
+- Home shows the library as cartridges on shelves, one per system, drawn to
+  the console's real cart size (`components/cartridge.tsx`). Picking one slides
+  it into the console on the right; picking it again or pressing Start starts
+  it. End session lives on the console.
+- The library is deduped by file name, so loading the same folder twice adds
+  nothing.
+- The host plays at the room link `/r/CODE`. The tab hosting a room keeps the
+  code in sessionStorage (`lib/host/room-tab.ts`), so a reload of that tab gets
+  the game and any other tab gets the join page. `/play` is only used until the
+  room opens (offline), then the URL is swapped in place.
+- The Esc menu no longer pauses the game. It has a chat (protocol messages
+  `say` and `chat`, last 50 lines sent in `welcome`) and a rename pencil.
+  Closed, chat lines toast in on the right and joins and leaves on the left.
+- Audio widget in the bottom right of both play screens: mute and a volume
+  slider, per device in localStorage. The host's level only changes its own
+  speakers, never the stream.
+- Full rooms: the signaling Worker allows 16 peers per room and answers
+  "Room is full" past that; the guest shows it as a sentence. When every player
+  slot is taken the lobby says so and only offers watching.

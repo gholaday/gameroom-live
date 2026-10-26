@@ -131,7 +131,13 @@ export class GuestSession {
       if (this.droppedAt) return this.retry(gen);
       this.set({
         status: "error",
-        error: type === "peer-unavailable" ? "This room is closed or the code is wrong." : err.message,
+        error:
+          type === "peer-unavailable"
+            ? "This room is closed or the code is wrong."
+            : // The signaling server caps how many can be in one room.
+              err.message === "Room is full"
+              ? "This room is full. Ask the host to make room."
+              : err.message,
       });
     });
     peer.on("open", () => {

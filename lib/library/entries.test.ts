@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { gameTitle, mergeEntries } from "./entries";
+import { gameTitle, mergeEntries, withoutDiscTracks } from "./entries";
 
 describe("gameTitle", () => {
   it("drops the extension and tags, and puts a trailing article back in front", () => {
@@ -21,6 +21,20 @@ describe("mergeEntries", () => {
     expect(merged.map((e) => [e.path, e.kind])).toEqual([
       ["F-Zero.smc", "copy"],
       ["snes/Zelda.sfc", "dir"],
+    ]);
+  });
+});
+
+describe("withoutDiscTracks", () => {
+  it("drops .bin tracks beside a disc index, keeps .bin carts elsewhere", () => {
+    const files = [
+      { path: "roms/Spyro (USA)/Spyro (USA).bin" },
+      { path: "roms/Spyro (USA)/Spyro (USA).cue" },
+      { path: "roms/Sonic (USA).bin" },
+    ];
+    expect(withoutDiscTracks(files).map((f) => f.path)).toEqual([
+      "roms/Spyro (USA)/Spyro (USA).cue",
+      "roms/Sonic (USA).bin",
     ]);
   });
 });
