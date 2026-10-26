@@ -1,0 +1,46 @@
+# Deploys the signaling Worker (signaling/) to Cloudflare. The site itself is
+# deployed by Vercel's Git integration, which ignores this folder.
+#
+# Needs two repository secrets:
+#   CLOUDFLARE_API_TOKEN   token from the "Edit Cloudflare Workers" template
+#   CLOUDFLARE_ACCOUNT_ID  from the Workers & Pages overview page
+
+name: Deploy signaling Worker
+
+on:
+  push:
+    branches: [main]
+    paths: ["signaling/**"]
+  workflow_dispatch:
+
+# Never run two deploys at once; the newest push wins.
+concurrency:
+  group: signaling-deploy
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: signaling
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: signaling/package-lock.json
+
+      - run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Deploy
+        run: npx wrangler deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

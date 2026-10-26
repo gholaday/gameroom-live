@@ -21,6 +21,11 @@ public broker, so the Worker is optional in development.
 
 ## Deploy
 
+Pushes to `main` that touch `signaling/` deploy automatically
+(`.github/workflows/signaling.yml`). The workflow needs the repository secrets
+`CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`, and can also be run by hand
+from the Actions tab. To deploy from your machine:
+
 ```bash
 cd signaling && npx wrangler login && npm run deploy
 ```
