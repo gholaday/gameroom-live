@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import type { System } from "@/lib/emulator/systems";
 import { dpadMask } from "@/lib/input/touch";
 import { bit, type RetroPadButton } from "@/lib/net/protocol";
 
@@ -9,7 +10,7 @@ import { bit, type RetroPadButton } from "@/lib/net/protocol";
  * every finger, so sliding between buttons and pressing several at once work.
  * Pressed states are set on the DOM directly; React renders the pad once.
  */
-export function TouchPad({ onChange }: { onChange: (mask: number) => void }) {
+export function TouchPad({ system, onChange }: { system: System; onChange: (mask: number) => void }) {
   const rootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -78,7 +79,7 @@ export function TouchPad({ onChange }: { onChange: (mask: number) => void }) {
       onContextMenu={(e) => e.preventDefault()}
     >
       <div className="flex flex-col items-start gap-4">
-        <Btn button="l" className="h-11 w-24 rounded-full text-sm">L</Btn>
+        {system.shoulders && <Btn button="l" className="h-11 w-24 rounded-full text-sm">L</Btn>}
         <div data-dpad="" className="relative h-[150px] w-[150px] rounded-full bg-white/10">
           <Dir button="up" className="top-1 left-1/2 -translate-x-1/2" />
           <Dir button="down" className="bottom-1 left-1/2 -translate-x-1/2" />
@@ -94,22 +95,57 @@ export function TouchPad({ onChange }: { onChange: (mask: number) => void }) {
       </div>
 
       <div className="flex flex-col items-end gap-4">
-        <Btn button="r" className="h-11 w-24 rounded-full text-sm">R</Btn>
-        <div className="relative h-[160px] w-[160px]">
-          <Btn button="x" className="absolute top-0 left-1/2 h-14 w-14 -translate-x-1/2 rounded-full">X</Btn>
-          <Btn button="y" className="absolute top-1/2 left-0 h-14 w-14 -translate-y-1/2 rounded-full">Y</Btn>
-          <Btn button="a" className="absolute top-1/2 right-0 h-14 w-14 -translate-y-1/2 rounded-full">A</Btn>
-          <Btn button="b" className="absolute bottom-0 left-1/2 h-14 w-14 -translate-x-1/2 rounded-full">B</Btn>
-        </div>
+        {system.shoulders && <Btn button="r" className="h-11 w-24 rounded-full text-sm">R</Btn>}
+        <FaceButtons face={system.face} />
       </div>
     </div>
   );
 }
 
-function Btn({ button, className, children }: { button: RetroPadButton; className: string; children: string }) {
+/** SNES-style diamond for four buttons; a rising diagonal row for two or three (NES, Genesis, Game Boy). */
+function FaceButtons({ face }: { face: System["face"] }) {
+  if (face.length === 4) {
+    const [y, x, b, a] = face;
+    return (
+      <div className="relative h-[160px] w-[160px]">
+        <Btn button={x.button} className="absolute top-0 left-1/2 h-14 w-14 -translate-x-1/2 rounded-full">{x.label}</Btn>
+        <Btn button={y.button} className="absolute top-1/2 left-0 h-14 w-14 -translate-y-1/2 rounded-full">{y.label}</Btn>
+        <Btn button={a.button} className="absolute top-1/2 right-0 h-14 w-14 -translate-y-1/2 rounded-full">{a.label}</Btn>
+        <Btn button={b.button} className="absolute bottom-0 left-1/2 h-14 w-14 -translate-x-1/2 rounded-full">{b.label}</Btn>
+      </div>
+    );
+  }
+  return (
+    <div className="flex items-end gap-3 pb-2">
+      {face.map((f, i) => (
+        <Btn
+          key={f.button}
+          button={f.button}
+          className="h-16 w-16 rounded-full"
+          style={{ marginBottom: i * 22 }}
+        >
+          {f.label}
+        </Btn>
+      ))}
+    </div>
+  );
+}
+
+function Btn({
+  button,
+  className,
+  style,
+  children,
+}: {
+  button: RetroPadButton;
+  className: string;
+  style?: React.CSSProperties;
+  children: string;
+}) {
   return (
     <div
       data-mask={bit(button)}
+      style={style}
       className={`flex items-center justify-center bg-white/15 font-extrabold text-white/90 data-[pressed]:bg-white/45 ${className}`}
     >
       {children}

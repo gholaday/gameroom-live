@@ -6,6 +6,7 @@ import { LatencyBreakdown, MenuHint, MenuPanel, MenuRow, setBreakdown, setPill, 
 import { statusText } from "@/components/guest-join";
 import { StreamVideo } from "@/components/stream-video";
 import { TouchPad } from "@/components/touch-pad";
+import { SYSTEMS } from "@/lib/emulator/systems";
 import type { GuestSession, GuestSnapshot } from "@/lib/guest/session";
 import { estimateLatency, perFrameMs } from "@/lib/net/latency";
 import { useGameMode, useNavAction } from "@/lib/nav/react";
@@ -105,7 +106,7 @@ export function GuestPlay({
             >
               Menu
             </button>
-            <TouchPad onChange={onTouch} />
+            <TouchPad system={SYSTEMS[snap.game?.systemId ?? "snes"]} onChange={onTouch} />
           </>
         )}
       </div>
@@ -131,14 +132,16 @@ export function GuestPlay({
               Just watch
             </MenuRow>
           ) : (
-            <MenuRow
-              onClick={() => {
-                session.claim(session.inputMode);
-                resume();
-              }}
-            >
-              Join as a player
-            </MenuRow>
+            (snap.game?.maxPlayers ?? 2) > 1 && (
+              <MenuRow
+                onClick={() => {
+                  session.claim(session.inputMode);
+                  resume();
+                }}
+              >
+                Join as a player
+              </MenuRow>
+            )
           )}
           <MenuRow onClick={onLobby}>Back to lobby</MenuRow>
         </MenuPanel>

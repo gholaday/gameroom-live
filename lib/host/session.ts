@@ -1,13 +1,15 @@
 import type { DataConnection, Peer } from "peerjs";
 import type { Nostalgist } from "nostalgist";
 import { installAudioTap, type AudioTap } from "@/lib/emulator/audio-tap";
-import { coreForFile, selfHostedCores } from "@/lib/emulator/cores";
-import { InputInjector, REMOTE_PLAYERS, remoteBindingsConfig } from "@/lib/emulator/injector";
+import { selfHostedCores } from "@/lib/emulator/cores";
+import { InputInjector, remoteBindingsConfig, remotePlayers } from "@/lib/emulator/injector";
+import { ROM_ACCEPT, type System } from "@/lib/emulator/systems";
 import { pinCanvasSize } from "@/lib/emulator/pin-canvas";
 import { SlotReservations } from "@/lib/host/reservations";
+import { listSaves, writeSave, type SaveSlot } from "@/lib/host/saves-store";
 import { clearResume, loadResume, saveResumeRom, saveResumeState } from "@/lib/host/resume-store";
 import { getName, MAX_NAME, setName } from "@/lib/identity";
-import { gameTitle } from "@/lib/library/entries";
+import { gameForFile } from "@/lib/library/games";
 import { preferCodec } from "@/lib/net/codecs";
 import { perFrameMs } from "@/lib/net/latency";
 import { fetchIceConfig, PeerLink } from "@/lib/net/link";
@@ -30,8 +32,6 @@ import type { OverlayController } from "@/lib/overlay/controller";
 // not React: React reads snapshots through useSyncExternalStore, and only on
 // meaningful changes (joins, slots, about once a second for RTT).
 
-/** SNES native 256x224 at 2x. */
-export const STREAM_SIZE = { width: 512, height: 448 };
 const STREAM_MAX_BITRATE = 4_000_000;
 /** Zero a player's buttons if their packets stop (tab hidden, network drop). */
 const INPUT_TIMEOUT_MS = 250;
@@ -72,7 +72,7 @@ export type HostSnapshot = {
   spectators: number;
   /** Everyone connected, players and spectators. */
   guests: GuestInfo[];
-  rom: { file: File; game: Game } | null;
+  rom: { file: File; game: Game; system: System } | null;
   /** True when the ROM came from a resume record and will boot from its state. */
   resuming: boolean;
   /** False until the resume record has been checked, so /play doesn't flash "No game". */
@@ -113,6 +113,11 @@ class HostSession {
    * running framebuffer.
    */
   private canvas: HTMLCanvasElement | null = null;
+  /**
+   * Nostalgist saves and loads through one shared state file, so overlapping
+   * operations (autosave during a slot load) clobber each other. Run them in turn.
+   */
+  private stateQueue: Promise<unknown> = Promise.resolve();
 
   subscribe = (fn: () => void) => {
     this.listeners.add(fn);
@@ -182,13 +187,14 @@ class HostSession {
 
   setRom(file: File, { persist = true } = {}): string | null {
     if (this.emu) return "End the current game first.";
-    if (!coreForFile(file.name)) return "Only SNES ROMs (.sfc, .smc) work right now.";
-    const title = gameTitle(file.name);
+    const found = gameForFile(file.name);
+    if (!found) return `That file type isn't supported. Supported: ${ROM_ACCEPT.replaceAll(",", ", ")}.`;
+    const { game, system } = found;
     if (persist) {
       this.resumeState = null;
       void saveResumeRom(file.name, file);
     }
-    this.set({ rom: { file, game: { title, system: "Super Nintendo" } }, resuming: false });
+    this.set({ rom: { file, game, system }, resuming: false });
     return null;
   }
 
@@ -202,8 +208,6 @@ class HostSession {
   getCanvas() {
     if (!this.canvas && typeof document !== "undefined") {
       this.canvas = document.createElement("canvas");
-      this.canvas.width = STREAM_SIZE.width;
-      this.canvas.height = STREAM_SIZE.height;
     }
     return this.canvas;
   }
@@ -213,8 +217,10 @@ class HostSession {
     const rom = this.snapshot.rom;
     const canvas = this.getCanvas();
     if (!rom || !canvas || this.emu) return;
-    const core = coreForFile(rom.file.name)!;
-    pinCanvasSize(canvas, STREAM_SIZE.width, STREAM_SIZE.height);
+    const { core, size, config } = rom.system;
+    canvas.width = size.width;
+    canvas.height = size.height;
+    pinCanvasSize(canvas, size.width, size.height);
     this.tap = installAudioTap();
 
     const { Nostalgist } = await import("nostalgist");
@@ -222,13 +228,14 @@ class HostSession {
       core,
       rom: rom.file,
       element: canvas,
-      size: STREAM_SIZE,
+      size,
       ...selfHostedCores,
       // Resume where the last session stopped, if we have a state for this ROM.
       ...(this.resumeState ? { state: { fileName: "resume.state", fileContent: this.resumeState } } : {}),
       retroarchConfig: {
         video_smooth: false,
-        // 1:1 PAR: 256x224 fills 512x448 at exactly 2x. See docs/m1-spike-notes.md.
+        // 1:1 PAR: the native picture fills the stream at an exact integer
+        // scale (SNES 256x224 at 2x is 512x448). See docs/m1-spike-notes.md.
         aspect_ratio_index: 21,
         // No thumbnail work on each save; we only need the state.
         savestate_thumbnail_enable: false,
@@ -236,6 +243,7 @@ class HostSession {
         // We hold one ourselves (keepAwake) and handle refusal.
         suspend_screensaver_enable: false,
         ...remoteBindingsConfig(),
+        ...config,
       },
     });
     this.injector = new InputInjector(this.emu);
@@ -254,20 +262,76 @@ class HostSession {
     this.broadcast({ t: "game", game: rom.game });
     for (const guest of this.guests.values()) void this.sendMedia(guest);
     this.timers.push(window.setInterval(() => void this.autosave(), AUTOSAVE_MS));
-    // One last save as the tab goes to the background (or is about to close).
     document.addEventListener("visibilitychange", this.onHidden);
     this.keepAwake();
   }
 
+  // No save on hide: a hidden tab stops RetroArch's frame loop, which is what
+  // processes the save command. The 10 s autosave has run recently anyway.
   private onHidden = () => {
-    if (document.hidden) void this.autosave(true);
     // The browser drops wake locks when the tab is hidden; take it again on return.
-    else this.keepAwake();
+    if (!document.hidden) this.keepAwake();
   };
 
   /** Keeps the host's screen on while a game runs. Best effort. */
   private keepAwake() {
     if (this.emu) navigator.wakeLock?.request("screen").catch(() => {});
+  }
+
+  // ---------- Save slots ----------
+
+  async listSlots(): Promise<(SaveSlot | null)[]> {
+    const rom = this.snapshot.rom;
+    return rom ? listSaves(rom.file.name) : [];
+  }
+
+  async saveSlot(slot: number) {
+    const emu = this.emu;
+    const rom = this.snapshot.rom;
+    if (!emu || !rom) return;
+    const [{ state }, thumbnail] = await Promise.all([this.inTurn(() => emu.saveState()), this.thumbnail()]);
+    await writeSave(rom.file.name, { slot, state, thumbnail, savedAt: Date.now() });
+  }
+
+  async loadSlot(slot: number) {
+    const emu = this.emu;
+    const rom = this.snapshot.rom;
+    if (!emu || !rom) return;
+    const save = (await listSaves(rom.file.name))[slot - 1];
+    if (save) await this.inTurn(() => emu.loadState(save.state));
+  }
+
+  /** Runs a state operation after the ones already queued. */
+  private inTurn<T>(op: () => Promise<T>): Promise<T> {
+    const run = this.stateQueue.then(op, op);
+    this.stateQueue = run.catch(() => {});
+    return run;
+  }
+
+  /**
+   * A small JPEG of the current frame, taken from the outgoing video track
+   * (not RetroArch's screenshot), so saving adds no work to the emulator.
+   */
+  private async thumbnail(): Promise<Blob | null> {
+    const track = this.stream?.getVideoTracks()[0];
+    const Capture = (window as unknown as { ImageCapture?: new (t: MediaStreamTrack) => { grabFrame(): Promise<ImageBitmap> } })
+      .ImageCapture;
+    if (!track || !Capture) return null;
+    try {
+      // A paused game still yields its last frame; the timeout is a safety net.
+      const frame = await Promise.race([
+        new Capture(track).grabFrame(),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error("no frame")), 800)),
+      ]);
+      const width = 192;
+      const height = Math.round((frame.height / frame.width) * width);
+      const canvas = new OffscreenCanvas(width, height);
+      canvas.getContext("2d")!.drawImage(frame, 0, 0, width, height);
+      frame.close();
+      return await canvas.convertToBlob({ type: "image/jpeg", quality: 0.8 });
+    } catch {
+      return null;
+    }
   }
 
   pause() {
@@ -304,7 +368,7 @@ class HostSession {
   setSlot(guestId: string, slot: number) {
     const guest = this.guests.get(guestId);
     if (!guest || guest.slot === slot) return;
-    if (slot && !REMOTE_PLAYERS.includes(slot)) return;
+    if (slot && !this.guestSlots().includes(slot)) return;
     const other = slot ? [...this.guests.values()].find((g) => g.slot === slot) : undefined;
     if (other) this.assign(other, guest.slot);
     this.assign(guest, slot);
@@ -407,6 +471,11 @@ class HostSession {
     });
   }
 
+  /** Slots guests can take for the current game (none for 1-player systems). */
+  guestSlots() {
+    return remotePlayers(this.snapshot.rom?.system.players ?? 1);
+  }
+
   private connectedSlots() {
     return new Set([...this.guests.values()].filter((g) => g.slot).map((g) => g.slot));
   }
@@ -461,7 +530,7 @@ class HostSession {
       case "claim": {
         if (guest.slot) break;
         const taken = this.takenSlots();
-        this.assign(guest, REMOTE_PLAYERS.find((s) => !taken.has(s)) ?? 0);
+        this.assign(guest, this.guestSlots().find((s) => !taken.has(s)) ?? 0);
         this.publishPlayers();
         break;
       }
@@ -535,11 +604,16 @@ class HostSession {
   }
 
   /** Saves a resume state. Skipped while hidden (the emulator isn't advancing). */
-  private async autosave(force = false) {
+  private async autosave() {
     const emu = this.emu;
-    if (!emu || (document.hidden && !force)) return;
+    if (!emu || document.hidden) return;
     const t0 = performance.now();
-    const { state } = await emu.saveState();
+    let state: Blob;
+    try {
+      ({ state } = await this.inTurn(() => emu.saveState()));
+    } catch {
+      return; // Next autosave will try again.
+    }
     if (process.env.NODE_ENV === "development") {
       console.debug(`[gameroom] autosave ${(state.size / 1024) | 0} KB in ${(performance.now() - t0).toFixed(1)} ms`);
     }

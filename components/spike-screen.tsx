@@ -4,7 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import type { Nostalgist } from "nostalgist";
 import { Dot, Footer, Hint } from "@/components/ui";
 import { installAudioTap, type AudioTap } from "@/lib/emulator/audio-tap";
-import { coreForFile, selfHostedCores } from "@/lib/emulator/cores";
+import { selfHostedCores } from "@/lib/emulator/cores";
+import { systemForFile } from "@/lib/emulator/systems";
 import { useGameMode } from "@/lib/nav/react";
 
 // SNES native is 256x224; stream at an integer 2x.
@@ -45,7 +46,7 @@ export function SpikeScreen() {
   }, []);
 
   const boot = async (file: File) => {
-    const core = coreForFile(file.name);
+    const core = systemForFile(file.name)?.core;
     if (!core) {
       setPhase("error");
       setMessage(`No core for ${file.name}. The spike only runs SNES (.sfc, .smc).`);

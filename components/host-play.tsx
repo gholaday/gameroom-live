@@ -3,6 +3,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { OverlayLayer } from "@/components/overlay-layer";
+import { SaveSlots } from "@/components/save-slots";
 import { MenuHint, MenuNote, MenuPanel, MenuRow, setPill, StatsPill } from "@/components/play-ui";
 import { hostSession } from "@/lib/host/session";
 import { useGameMode, useInitialFocus, useNavAction } from "@/lib/nav/react";
@@ -109,6 +110,8 @@ export function HostPlay() {
   );
 }
 
+const listSlots = () => hostSession.listSlots();
+
 function HostMenu({
   system,
   title,
@@ -127,22 +130,38 @@ function HostMenu({
   onEnd: () => void;
 }) {
   const [note, setNote] = useState<string | null>(null);
+  const [slots, setSlots] = useState<"save" | "load" | null>(null);
   const resume = () => {
     (document.activeElement as HTMLElement | null)?.blur();
     onResume();
   };
   return (
     <MenuPanel system={system} title={title} players={players} spectators={spectators} onBack={resume}>
-      <MenuRow onClick={resume} isDefault>
-        Resume
-      </MenuRow>
-      <MenuRow onClick={() => setNote("Save states arrive in a later milestone.")}>Save state</MenuRow>
-      <MenuRow onClick={() => setNote("Save states arrive in a later milestone.")}>Load state</MenuRow>
-      <MenuRow onClick={() => setNote(inviteText)}>Invite friends</MenuRow>
-      <MenuRow onClick={onEnd} danger>
-        End session
-      </MenuRow>
-      {note && <MenuNote>{note}</MenuNote>}
+      {slots ? (
+        <SaveSlots
+          mode={slots}
+          list={listSlots}
+          onPick={async (slot) => {
+            if (slots === "save") return hostSession.saveSlot(slot);
+            await hostSession.loadSlot(slot);
+            resume();
+          }}
+          onBack={() => setSlots(null)}
+        />
+      ) : (
+        <>
+          <MenuRow onClick={resume} isDefault>
+            Resume
+          </MenuRow>
+          <MenuRow onClick={() => setSlots("save")}>Save state</MenuRow>
+          <MenuRow onClick={() => setSlots("load")}>Load state</MenuRow>
+          <MenuRow onClick={() => setNote(inviteText)}>Invite friends</MenuRow>
+          <MenuRow onClick={onEnd} danger>
+            End session
+          </MenuRow>
+          {note && <MenuNote>{note}</MenuNote>}
+        </>
+      )}
     </MenuPanel>
   );
 }

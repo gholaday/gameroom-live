@@ -1,4 +1,4 @@
-import { coreForFile } from "@/lib/emulator/cores";
+import { systemForFile } from "@/lib/emulator/systems";
 
 /**
  * One ROM in the host's library. `dir` entries are read through the saved
@@ -19,7 +19,7 @@ export function mergeEntries(existing: LibraryEntry[], added: { path: string; ki
   const byPath = new Map(existing.map((e) => [e.path, e]));
   for (const { path, kind } of added) {
     const name = path.split("/").pop()!;
-    if (coreForFile(name)) byPath.set(path, { path, kind, title: gameTitle(name) });
+    if (systemForFile(name)) byPath.set(path, { path, kind, title: gameTitle(name) });
   }
   return [...byPath.values()].sort((a, b) => a.title.localeCompare(b.title));
 }

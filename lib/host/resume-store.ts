@@ -17,15 +17,23 @@ const STATE_KEY = "state";
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 
-/** Also used by the ROM library, which adds its own store in version 2. */
+/** Shared by the ROM library (version 2) and save slots (version 3). */
 export function openDb(): Promise<IDBDatabase> {
   dbPromise ??= new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB, 2);
+    const req = indexedDB.open(DB, 3);
     req.onupgradeneeded = () => {
       const db = req.result;
-      for (const name of [STORE, "library"]) if (!db.objectStoreNames.contains(name)) db.createObjectStore(name);
+      for (const name of [STORE, "library", "saves"]) if (!db.objectStoreNames.contains(name)) db.createObjectStore(name);
     };
-    req.onsuccess = () => resolve(req.result);
+    req.onsuccess = () => {
+      const db = req.result;
+      // Let a newer tab upgrade the schema instead of blocking it.
+      db.onversionchange = () => {
+        db.close();
+        dbPromise = null;
+      };
+      resolve(db);
+    };
     req.onerror = () => {
       dbPromise = null;
       reject(req.error);

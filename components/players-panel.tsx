@@ -3,18 +3,20 @@
 import { useState } from "react";
 import { Avatar, latencyClass, type PlayerSlot } from "@/components/ui";
 import type { GuestInfo } from "@/lib/host/session";
-import { REMOTE_PLAYERS } from "@/lib/emulator/injector";
 import { MAX_NAME } from "@/lib/identity";
 
 /** Host controls: move guests between slots, make them spectate, or remove them. */
 export function PlayersPanel({
   hostName,
   guests,
+  slots,
   onSlot,
   onKick,
 }: {
   hostName: string;
   guests: GuestInfo[];
+  /** Slots guests can take for this game. */
+  slots: number[];
   onSlot: (id: string, slot: number) => void;
   onKick: (id: string) => void;
 }) {
@@ -35,7 +37,7 @@ export function PlayersPanel({
             </>
           }
         >
-          {REMOTE_PLAYERS.map((slot) => (
+          {slots.map((slot) => (
             <SmallButton key={slot} active={g.slot === slot} onClick={() => onSlot(g.id, slot)}>
               {`P${slot}`}
             </SmallButton>

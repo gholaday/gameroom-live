@@ -6,7 +6,9 @@ import { QRCodeSVG } from "qrcode.react";
 import { FolderOpen, Gamepad2, Plus, RefreshCw, Save, Settings, UserPlus, type LucideIcon } from "lucide-react";
 import { PlayersPanel, SettingsPanel } from "@/components/players-panel";
 import { Avatar, Dot, EmptySlot, Footer, Hint, Pill, type PlayerSlot } from "@/components/ui";
+import { ROM_ACCEPT } from "@/lib/emulator/systems";
 import { hostSession } from "@/lib/host/session";
+import { gameForFile } from "@/lib/library/games";
 import type { LibraryEntry } from "@/lib/library/entries";
 import { canPickFolder, library } from "@/lib/library/store";
 import type { Game } from "@/lib/net/protocol";
@@ -151,14 +153,19 @@ export function HostHome() {
             {game && <GameTile game={game} large onClick={start} />}
             {lib.entries
               .filter((e) => !snap.rom || e.path.split("/").pop() !== snap.rom.file.name)
-              .map((entry) => (
-                <GameTile
-                  key={entry.path}
-                  game={{ title: entry.title, system: "Super Nintendo" }}
-                  isDefault={false}
-                  onClick={() => void playEntry(entry)}
-                />
-              ))}
+              .map((entry) => {
+                const found = gameForFile(entry.path.split("/").pop()!);
+                return (
+                  found && (
+                    <GameTile
+                      key={entry.path}
+                      game={found.game}
+                      isDefault={false}
+                      onClick={() => void playEntry(entry)}
+                    />
+                  )
+                );
+              })}
             {lib.needsPermission && (
               <ActionTile icon={RefreshCw} onClick={() => void library.reconnect().catch((e) => setNote(String(e.message ?? e)))}>
                 Reconnect {lib.folderName}
@@ -174,7 +181,7 @@ export function HostHome() {
               ref={fileRef}
               type="file"
               hidden
-              accept=".sfc,.smc"
+              accept={ROM_ACCEPT}
               onChange={(e) => {
                 const file = e.target.files?.[0];
                 if (file) openRom(file);
@@ -199,7 +206,7 @@ export function HostHome() {
           <div className="flex flex-wrap gap-[22px]">
             <Shortcut icon={UserPlus} label="Invite" ariaLabel="Invite friends" color="text-primary-text" onClick={focusInvite} />
             <Shortcut icon={Gamepad2} label="Players" color="text-p2" onClick={() => togglePanel("players")} />
-            <Shortcut icon={Save} label="Saves" ariaLabel="Save states" color="text-p3" onClick={() => setNote("Saves are coming soon.")} />
+            <Shortcut icon={Save} label="Saves" ariaLabel="Save states" color="text-p3" onClick={() => setNote("Save and load states from the in-game menu: Esc, Home, or Select+Start.")} />
             <Shortcut icon={Settings} label="Settings" color="text-text-muted" onClick={() => togglePanel("settings")} />
           </div>
 
@@ -244,6 +251,7 @@ export function HostHome() {
           <PlayersPanel
             hostName={snap.hostName}
             guests={snap.guests}
+            slots={hostSession.guestSlots()}
             onSlot={(id, slot) => hostSession.setSlot(id, slot)}
             onKick={(id) => hostSession.kick(id)}
           />
@@ -294,14 +302,16 @@ function GameTile({
 
 const ART_COLORS = ["#E5603F", "#1F9E89", "#7A5AF0", "#E0A21B", "#1A5FC0"];
 
-/** Placeholder cover until real box art exists. */
+/** Box art when libretro has it; generated initials while it loads or if it doesn't. */
 function BoxArt({ game }: { game: Game }) {
+  const [failed, setFailed] = useState(false);
   let hash = 0;
   for (const ch of game.title) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
   const color = ART_COLORS[hash % ART_COLORS.length];
   const initials = game.title
     .split(/\s+/)
-    .filter((w) => /^[A-Za-z0-9]/.test(w))
+    // Capitalized words only, so "The Legend of Zelda" reads TLZ.
+    .filter((w) => /^[A-Z0-9]/.test(w))
     .slice(0, 3)
     // Keep numbers whole so "Mario Kart 64" reads MK64.
     .map((w) => (/^\d/.test(w) ? w : w[0]))
@@ -309,10 +319,22 @@ function BoxArt({ game }: { game: Game }) {
   return (
     <span
       aria-hidden
-      className="flex flex-1 items-center justify-center text-5xl font-extrabold text-white/90"
+      className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden text-5xl font-extrabold text-white/90"
       style={{ background: `linear-gradient(135deg, ${color}, #2B2B2E)` }}
     >
       {initials}
+      {game.cover && !failed && (
+        // Plain <img>: cross-origin, already sized, and next/image would need a remote loader.
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={game.cover}
+          alt=""
+          loading="lazy"
+          decoding="async"
+          onError={() => setFailed(true)}
+          className="absolute inset-0 h-full w-full object-cover"
+        />
+      )}
     </span>
   );
 }

@@ -36,6 +36,9 @@ export function GuestJoin({ code }: { code: string }) {
   }, [session, view]);
 
   const connected = snap.status === "connected";
+  // Before the host starts a game we don't know the system; assume it has room.
+  const maxPlayers = snap.game?.maxPlayers ?? SLOTS.length;
+  const canPlay = connected && maxPlayers > 1;
   const play = (mode: InputMode) => {
     session.claim(mode);
     setView("play");
@@ -46,7 +49,7 @@ export function GuestJoin({ code }: { code: string }) {
   };
 
   useInitialFocus(view === "lobby");
-  useAnyGamepadButton(() => play("gamepad"), connected && view === "lobby");
+  useAnyGamepadButton(() => play("gamepad"), canPlay && view === "lobby");
   useNavAction("back", watch, connected && view === "lobby");
 
   if (view === "play") {
@@ -81,8 +84,8 @@ export function GuestJoin({ code }: { code: string }) {
         </div>
 
         <div className="flex flex-wrap justify-center gap-[34px]">
-          {SLOTS.map((slot) => {
-            if (slot === mySlot && connected) {
+          {SLOTS.slice(0, maxPlayers).map((slot) => {
+            if (slot === mySlot && canPlay) {
               return (
                 <GuestSlot key={slot} slot={slot} claimed={!!snap.slot} claiming={snap.claiming} onJoin={() => play("gamepad")} />
               );
@@ -101,12 +104,18 @@ export function GuestJoin({ code }: { code: string }) {
         </div>
 
         <div className="flex flex-wrap justify-center gap-3">
-          <PillButton disabled={!connected} onClick={() => play("touch")}>
-            Touch controls
-          </PillButton>
-          <PillButton disabled={!connected} onClick={() => play("keyboard")}>
-            Keyboard
-          </PillButton>
+          {maxPlayers > 1 ? (
+            <>
+              <PillButton disabled={!connected} onClick={() => play("touch")}>
+                Touch controls
+              </PillButton>
+              <PillButton disabled={!connected} onClick={() => play("keyboard")}>
+                Keyboard
+              </PillButton>
+            </>
+          ) : (
+            <p className="self-center text-sm font-bold text-text-muted">This is a 1-player game. You can watch.</p>
+          )}
           <button
             type="button"
             disabled={!connected}

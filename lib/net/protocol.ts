@@ -1,3 +1,5 @@
+import type { SystemId } from "@/lib/emulator/systems";
+
 // Wire formats shared by host and guest. See design doc section 6.
 //
 // Input channel (unordered, no retransmits), binary:
@@ -58,7 +60,17 @@ export function encodePing(kind: typeof PING | typeof PONG, time: number, out: D
   out.setFloat64(1, time);
 }
 
-export type Game = { title: string; system: string };
+export type Game = {
+  title: string;
+  /** Display name, e.g. "SNES". */
+  system: string;
+  /** Key into SYSTEMS, for the guest's touch pad layout. */
+  systemId: SystemId;
+  /** Simultaneous players; 1 means guests can only watch. */
+  maxPlayers: number;
+  /** Box art URL, if one is known. */
+  cover?: string;
+};
 export type PlayerInfo = { slot: number; name: string; isHost?: boolean; rttMs?: number };
 /** Everyone who can point or draw: host is peer 0, guests 1..255. */
 export type OverlayPeer = { id: number; name: string; slot: number };
